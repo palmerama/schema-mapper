@@ -11,7 +11,7 @@ const theme = buildTheme()
 
 const config: SanityConfig[] = [
   {
-    projectId: '0iys01al',
+    projectId: 'YOUR_PROJECT_ID' // TODO: Replace with your Sanity project ID,
     dataset: 'production',
   },
 ]

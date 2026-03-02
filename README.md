@@ -18,11 +18,16 @@ Schema Mapper connects to your Sanity organization, discovers all projects and d
 
 ## Quick Start
 
-### Interactive setup (recommended)
+### Using skills.sh (recommended)
 
 ```bash
-curl -sO https://raw.githubusercontent.com/palmerama/schema-mapper/main/scripts/setup.mjs
-node setup.mjs
+npx skills add palmerama/schema-mapper
+```
+
+Then run the interactive setup:
+
+```bash
+node .skills/schema-mapper/scripts/setup.mjs
 ```
 
 The setup script will:

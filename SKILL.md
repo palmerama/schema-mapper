@@ -14,14 +14,8 @@ Schema Mapper is a Sanity App SDK application that visually maps an organization
 ### Interactive (recommended)
 
 ```bash
-curl -sO https://raw.githubusercontent.com/palmerama/schema-mapper/main/scripts/setup.mjs
-node setup.mjs
-```
-
-Or if you've already cloned the repo:
-
-```bash
-node scripts/setup.mjs
+npx skills add palmerama/schema-mapper
+node .skills/schema-mapper/scripts/setup.mjs
 ```
 
 The setup script will:

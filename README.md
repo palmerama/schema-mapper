@@ -44,7 +44,7 @@ pnpm install
 npx sanity dev
 ```
 
-The app runs at `http://localhost:3333` and appears in your Sanity dashboard.
+The dev server starts at `http://localhost:3333`, but **open your Sanity dashboard in the browser** — the app runs inside the dashboard as a local app, not directly at localhost.
 
 ## Configuration
 

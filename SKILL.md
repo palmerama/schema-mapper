@@ -62,7 +62,7 @@ Run the install command inside the app directory.
 
 ### 7. Done
 
-Tell the user: "Schema Mapper is installed. Run `npx sanity dev` from `<path>` to start. It will appear in your Sanity dashboard."
+Tell the user: "Schema Mapper is installed. Run `npx sanity dev` from `<path>` to start. Then open your Sanity dashboard in the browser — the app runs inside the dashboard as a local app, not directly at localhost."
 
 ## Update
 

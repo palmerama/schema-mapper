@@ -49,7 +49,7 @@ type DatasetState = {
 type State = {
   datasets: Map<string, string[]>           // projectId → dataset names
   schemas: Map<string, DatasetState>        // "projectId::dataset" → state
-  completedProjects: Set<string>
+  completedPairs: Set<string>               // "projectId::dataset" keys that finished
   failedProjects: Set<string>
 }
 
@@ -62,7 +62,7 @@ type Action =
 const initialState: State = {
   datasets: new Map(),
   schemas: new Map(),
-  completedProjects: new Set(),
+  completedPairs: new Set(),
   failedProjects: new Set(),
 }
 
@@ -84,17 +84,19 @@ function reducer(state: State, action: Action): State {
         hasDeployedSchema: action.hasDeployedSchema,
         status: 'complete',
       })
-      const nextCompleted = new Set(state.completedProjects)
-      nextCompleted.add(action.projectId)
-      return { ...state, schemas: nextSchemas, completedProjects: nextCompleted }
+      const nextCompleted = new Set(state.completedPairs)
+      nextCompleted.add(key)
+      return { ...state, schemas: nextSchemas, completedPairs: nextCompleted }
     }
 
     case 'DISCOVERY_ERROR': {
       const nextFailed = new Set(state.failedProjects)
       nextFailed.add(action.projectId)
-      const nextCompleted = new Set(state.completedProjects)
-      nextCompleted.add(action.projectId)
-      return { ...state, failedProjects: nextFailed, completedProjects: nextCompleted }
+      // Mark all known datasets for this project as completed
+      const nextCompleted = new Set(state.completedPairs)
+      const dsNames = state.datasets.get(action.projectId) || []
+      dsNames.forEach(ds => nextCompleted.add(`${action.projectId}::${ds}`))
+      return { ...state, failedProjects: nextFailed, completedPairs: nextCompleted }
     }
 
     case 'DATASET_ERROR': {
@@ -278,7 +280,7 @@ function LiveOrgOverviewInner() {
 
   // Build ProjectInfo[] from reducer state (derived, not stored)
   const projectInfos: ProjectInfo[] = (projects || []).map((p: any) => {
-    const dsNames = state.datasets.get(p.id) || ['production']
+    const dsNames = state.datasets.get(p.id) || []
     const datasets = dsNames.map(datasetName => {
       const key = `${p.id}::${datasetName}`
       const schemaState = state.schemas.get(key)
@@ -317,8 +319,12 @@ function LiveOrgOverviewInner() {
     return a.displayName.localeCompare(b.displayName)
   })
 
-  const totalProjects = projects?.length || 0
-  const isLoading = state.completedProjects.size < totalProjects
+  // Count total expected dataset pairs vs completed
+  const totalExpectedPairs = (projects || []).reduce((sum: number, p: any) => {
+    const dsNames = state.datasets.get(p.id)
+    return sum + (dsNames ? dsNames.length : 1) // 1 = still waiting for dataset list
+  }, 0)
+  const isLoading = state.completedPairs.size < totalExpectedPairs
 
   return (
     <>
@@ -336,7 +342,8 @@ function LiveOrgOverviewInner() {
           </ErrorBoundary>
         ))}
         {(projects || []).map((p: any) => {
-          const dsNames = state.datasets.get(p.id) || ['production']
+          const dsNames = state.datasets.get(p.id)
+          if (!dsNames) return null // Wait until real datasets are discovered
           return dsNames.map(dsName => (
             <ErrorBoundary key={`${p.id}-${dsName}`} fallback={null} onError={handleBoundaryError(p.id)}>
               <Suspense fallback={null}>

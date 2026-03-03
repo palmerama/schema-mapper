@@ -139,6 +139,7 @@ function useSchemaDiscoveryInference(enabled: boolean = true): {
   const client = useClient({apiVersion: '2024-01-01'})
   const clientRef = useRef(client)
   clientRef.current = client
+  const {projectId, dataset} = client.config()
 
   useEffect(() => {
     if (!enabled) {
@@ -212,7 +213,7 @@ function useSchemaDiscoveryInference(enabled: boolean = true): {
     return () => {
       cancelled = true
     }
-  }, [enabled])
+  }, [enabled, projectId, dataset])
 
   return {types, isLoading, error}
 }

@@ -158,10 +158,13 @@ export function useDeployedSchema(): {
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
 
+        console.log('[Schema Mapper] Deployed schema API response:', JSON.stringify(schemas, null, 2)?.substring(0, 2000))
+
         if (cancelled) return
 
         // Parse the schema
         const parsedTypes = parseDeployedSchema(schemas)
+        console.log('[Schema Mapper] Parsed types:', parsedTypes.length, parsedTypes.map(t => t.name))
 
         if (parsedTypes.length === 0) {
           // No deployed schema available

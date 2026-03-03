@@ -1,103 +1,161 @@
 ---
 name: schema-mapper
-description: Set up and configure Schema Mapper — a visual Sanity org/schema explorer using App SDK and React Flow. Use when building, deploying, or customizing Schema Mapper for any Sanity organization.
+description: Set up, configure, and update Schema Mapper — a visual Sanity org/schema explorer using App SDK and React Flow.
 ---
 
 # Schema Mapper
 
-## What It Is
+Visual Sanity org/schema explorer. A Sanity App SDK app using React Flow. Shows projects, datasets, and document types as nodes, references as edges. Connects to the Sanity API, discovers all projects in an org, samples documents to infer schemas, and renders an interactive node graph.
 
-Schema Mapper is a Sanity App SDK application that visually maps an organization's projects, datasets, and document schemas using React Flow. It connects to the Sanity API, discovers all projects in an org, samples documents to infer schema types and reference relationships, and renders them as an interactive node graph.
+## Setup
 
-## Quick Setup
+Follow these steps when a user says "install schema mapper" or "set up schema mapper".
 
-### Interactive (recommended)
+### 1. Choose install location
 
-```bash
-npx skills add palmerama/schema-mapper
-node .skills/schema-mapper/scripts/setup.mjs
-```
+- Check if an `apps/` directory exists in the current project
+- If yes: suggest `apps/schema-mapper` as the default location
+- If no: ask the user where they want to install it
+- Confirm the path with the user before proceeding
 
-The setup script will:
-1. Ask where to install (detects `apps/` monorepo structure)
-2. Clone the repo and clean up git history
-3. List your Sanity projects and let you pick one
-4. Detect your organization ID
-5. Configure `sanity.cli.ts` and `src/App.tsx` with your project/org IDs
-6. Install dependencies with your preferred package manager
-
-### Manual Setup
+### 2. Clone the repository
 
 ```bash
-git clone --depth 1 https://github.com/palmerama/schema-mapper.git
-cd schema-mapper
-rm -rf .git scripts/
-pnpm install
+git clone --depth 1 https://github.com/palmerama/schema-mapper.git <chosen-path>
+rm -rf <chosen-path>/.git
+rm -rf <chosen-path>/scripts
 ```
 
-Then edit these files:
-
-1. **`sanity.cli.ts`** — Replace `YOUR_PROJECT_ID` with your Sanity project ID, and `YOUR_ORG_ID` with your organization ID
-2. **`src/App.tsx`** — Replace `YOUR_PROJECT_ID` with the same project ID
-
-Then run:
+### 3. Choose Sanity project
 
 ```bash
-npx sanity dev
+npx sanity projects list
 ```
+
+- Present the list to the user with project names and IDs
+- Ask the user to choose which project to use
+- If the Sanity CLI isn't available or the command fails, ask the user for their project ID manually
+
+### 4. Get organization ID
+
+```bash
+npx sanity projects get <projectId>
+```
+
+- Look for the org ID in the output
+- If that fails, ask the user for their organization ID
+- Org IDs look like `o02mZUBKf` (starts with `o`, alphanumeric)
+
+### 5. Configure the app
+
+In `<path>/sanity.cli.ts`: replace `YOUR_PROJECT_ID` with the chosen project ID, replace `YOUR_ORG_ID` with the org ID.
+
+In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID.
+
+### 6. Install dependencies
+
+- Check for `pnpm-lock.yaml` → use `pnpm install`
+- Check for `yarn.lock` → use `yarn install`
+- Otherwise → use `npm install`
+
+Run the install command inside the app directory.
+
+### 7. Done
+
+Tell the user: "Schema Mapper is installed. Run `npx sanity dev` from `<path>` to start. It will appear in your Sanity dashboard."
+
+## Update
+
+Follow these steps when a user says "update schema mapper".
+
+### 1. Find the installation
+
+Look for the schema-mapper directory. Check `apps/schema-mapper` first, then ask the user.
+
+### 2. Backup config
+
+Read and save the full contents of these files (they contain the user's project/org config):
+- `<path>/sanity.cli.ts`
+- `<path>/src/App.tsx`
+
+### 3. Download latest
+
+```bash
+cd <path> && curl -sL https://github.com/palmerama/schema-mapper/archive/main.tar.gz | tar xz
+```
+
+### 4. Overwrite source files
+
+Copy everything from the extracted `schema-mapper-main/` directory into `<path>`, EXCEPT `sanity.cli.ts` and `src/App.tsx`.
+
+### 5. Restore config
+
+Write back the saved `sanity.cli.ts` and `src/App.tsx` files.
+
+### 6. Clean up
+
+```bash
+rm -rf <path>/schema-mapper-main
+```
+
+### 7. Install dependencies
+
+Run install in case `package.json` changed (use the same package manager detection as setup).
+
+### 8. Done
+
+Tell the user the update is complete.
 
 ## Architecture
 
 ### App SDK App (not a Studio plugin)
 
-Schema Mapper is a standalone Sanity App SDK app, not a Studio plugin. It uses:
+Schema Mapper is a standalone Sanity App SDK app. It uses:
 - `sanity.cli.ts` with `app: { organizationId, entry }` config
 - `SanityApp` provider from `@sanity/sdk-react` with explicit `config` prop
 - `useProjects()`, `useDatasets()`, `useClient()` hooks for data fetching
 - `ResourceProvider` to scope hooks to specific project/dataset contexts
 
-### Data Flow (Progressive Loading)
+### Data Flow
 
-1. `LiveOrgOverview` uses `useProjects()` to get all org projects
-2. For each project, `ProjectDatasetsWrapper` uses `useDatasets()` inside a `ResourceProvider`
-3. For each dataset, `DatasetDiscoveryWrapper` uses `useSchemaDiscovery()` to sample documents
-4. Results flow up via callbacks and are assembled into `ProjectInfo[]` for the UI
-5. `OrgOverview` renders the navigation and graph as data arrives progressively
+1. `LiveOrgOverview` → `useProjects()` gets all org projects
+2. Per project: `ProjectDatasetsWrapper` → `useDatasets()` inside `ResourceProvider`
+3. Per dataset: `DatasetDiscoveryWrapper` → `useSchemaDiscovery()` samples documents
+4. Results flow up via callbacks → assembled into `ProjectInfo[]`
+5. `OrgOverview` renders navigation and graph as data arrives progressively
 
-### Layout Engine
-
-- **ELK.js** handles layered, force, and stress layouts
-- **Dagre** handles the dagre layout
-- Stress layout manually separates connected components and packs them in a rectangle
-- Layout is applied after React Flow measures node dimensions (`useNodesInitialized`)
-- Per-layout spacing multipliers stored in localStorage
-
-### Schema Discovery (`useSchemaDiscovery`)
-
-1. Fetches all unique `_type` values via `array::unique(*[]._type)`
-2. For each type: fetches a sample document + count
-3. Infers field types from sample values (string, reference, image, array, etc.)
-4. Resolves reference targets by following `->._type` in GROQ
-
-## Key Files
+### Key Files
 
 | File | Purpose |
 |------|---------|
-| `sanity.cli.ts` | CLI config — org ID, Vite config (Tailwind, path aliases, CORS headers) |
-| `sanity.config.ts` | Sanity config — project ID for CLI detection |
-| `src/App.tsx` | Root component — SanityApp provider, theme, routing |
-| `src/components/LiveOrgOverview.tsx` | Data orchestrator — progressive loading of projects/datasets/schemas |
-| `src/components/OrgOverview.tsx` | UI shell — project/dataset tabs, graph container, export, routing |
-| `src/components/SchemaGraph.tsx` | React Flow graph — 4 layout algorithms, edge styles, controls |
-| `src/components/SchemaNode.tsx` | Custom React Flow node — field list with type badges and handles |
-| `src/components/ExportDropdown.tsx` | PNG/SVG/PDF export with smart cropping |
+| `sanity.cli.ts` | CLI config — org ID, Vite config, CORS headers |
+| `src/App.tsx` | Root — SanityApp provider, theme, routing |
+| `src/components/LiveOrgOverview.tsx` | Data orchestrator — progressive loading |
+| `src/components/OrgOverview.tsx` | UI shell — tabs, graph container, export |
+| `src/components/SchemaGraph.tsx` | React Flow graph — 4 layout algorithms, edge styles |
+| `src/components/SchemaNode.tsx` | Custom node — field list with type badges and handles |
 | `src/hooks/useSchemaDiscovery.ts` | Schema inference from document sampling |
-| `src/styles/sanity-theme.css` | Full Sanity UI theme (colors, spacing, typography, component styles) |
 
-## Configuration Options
+## Known Gotchas
+
+1. **Sanity CLI detection in monorepos** — CLI needs both `sanity.cli.ts` in the project root AND `sanity` in `devDependencies` of `package.json`. Missing either = CLI won't find the app.
+
+2. **Chrome LNA headers** — Chrome requires `Access-Control-Allow-Private-Network: true` for localhost. Without it, Sanity auth flow fails. Configured in `sanity.cli.ts` under `vite.server.headers`.
+
+3. **useDatasets() per-project error handling** — `useDatasets()` throws for projects where the user isn't a member. Each call is wrapped in an `ErrorBoundary` that falls back to assuming a `production` dataset.
+
+4. **SanityApp needs explicit config prop** — `SanityApp` from `@sanity/sdk-react` requires `config` with at least one `{ projectId, dataset }` entry. Without it, hooks like `useProjects()` won't work.
+
+5. **ResourceProvider needs fallback={null}** — Without `fallback={null}`, `ResourceProvider` shows a loading flash. Always pass it for background data fetching.
+
+6. **Hook ordering in React Flow** — `useCallback` functions referencing `setEdges` (from `useEdgesState`) must be defined AFTER the `useEdgesState` call. JavaScript's temporal dead zone causes "Cannot access before initialization" errors otherwise.
+
+7. **Edge/node types must be module-level** — `nodeTypes` and `edgeTypes` objects must be defined outside the component. If defined inside, React Flow recreates them every render causing infinite loops.
+
+## Customization
 
 ### Layout Algorithms
-- `dagre` — Dagre directed graph (LR)
+- `dagre` — Directed graph (LR)
 - `layered` — ELK layered with crossing minimization
 - `force` — ELK force-directed
 - `stress` — ELK stress with manual component separation
@@ -107,36 +165,11 @@ Schema Mapper is a standalone Sanity App SDK app, not a Studio plugin. It uses:
 - `smoothstep` — Right-angle stepped edges
 - `straight` — Direct lines
 
-### localStorage Keys
-- `schema-mapper:{orgId}:lastRoute` — Last viewed project/dataset
-- `schema-mapper:layoutType` — Selected layout algorithm
-- `schema-mapper:edgeStyle` — Selected edge style
-- `schema-mapper:curvature` — Bezier curvature value
-- `schema-mapper:spacingMap` — Per-layout spacing multipliers
+### Adding a New Layout
+Add the layout function in `SchemaGraph.tsx`, add it to the layout selector dropdown, and define default spacing in the spacing map.
 
-## Known Gotchas
+### Changing Node Appearance
+Edit `SchemaNode.tsx`. The node renders field names, type badges, and source/target handles for references.
 
-### Sanity CLI Detection in Monorepos
-The Sanity CLI needs two things to detect an app:
-1. A `sanity.cli.ts` file in the project root
-2. `sanity` in `devDependencies` of `package.json`
-
-If either is missing, `sanity dev` won't recognize the app.
-
-### Chrome Local Network Access (LNA) Headers
-Chrome requires `Access-Control-Allow-Private-Network: true` headers for localhost dev servers. Without this, the Sanity auth flow may fail. This is configured in `sanity.cli.ts` under `vite.server.headers`.
-
-### useDatasets() Fails for Projects Without Membership
-`useDatasets()` throws an error for projects where the current user isn't a member. Schema Mapper wraps each call in an `ErrorBoundary` and falls back to assuming a `production` dataset exists.
-
-### SanityApp Needs Explicit config Prop
-`SanityApp` from `@sanity/sdk-react` requires an explicit `config` prop with at least one `{ projectId, dataset }` entry. Without it, hooks like `useProjects()` won't work.
-
-### ResourceProvider Needs fallback={null}
-Without `fallback={null}`, `ResourceProvider` shows a brief loading flash. Always pass `fallback={null}` when using it for background data fetching.
-
-### Hook Ordering: useCallback Must Come After useEdgesState
-`useCallback` functions that reference `setEdges` (from `useEdgesState`) must be defined AFTER the `useEdgesState` call. JavaScript's temporal dead zone means the setter isn't available before the `useState`-like hook runs. This caused "Cannot access before initialization" errors.
-
-### Edge Types and Node Types Must Be Defined Outside Components
-React Flow's `nodeTypes` and `edgeTypes` objects must be defined outside the component to prevent infinite re-renders. If defined inside, React Flow recreates them on every render.
+### Export Formats
+`ExportDropdown.tsx` supports PNG, SVG, and PDF with smart cropping. Add new formats there.

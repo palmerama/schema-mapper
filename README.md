@@ -18,26 +18,17 @@ Schema Mapper connects to your Sanity organization, discovers all projects and d
 
 ## Quick Start
 
-### Using skills.sh (recommended)
+### With an AI agent (recommended)
+
+Install the skill, then ask your agent to set it up:
 
 ```bash
 npx skills add palmerama/schema-mapper
 ```
 
-Then run the interactive setup:
+Then tell your agent: *"Set up Schema Mapper"* — it will clone the repo, ask which Sanity project to use, and configure everything.
 
-```bash
-node .skills/schema-mapper/scripts/setup.mjs
-```
-
-The setup script will:
-1. Ask where to install (detects `apps/` monorepo structure)
-2. Clone the repo
-3. List your Sanity projects — pick one from the list
-4. Auto-configure `sanity.cli.ts` and `src/App.tsx`
-5. Install dependencies
-
-Then run `npx sanity dev`.
+To update later: *"Update Schema Mapper"*
 
 ### Manual setup
 

@@ -180,7 +180,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
-            <span>v1.0</span>
+            <span>v1.1</span>
           </div>
         )}
       </div>

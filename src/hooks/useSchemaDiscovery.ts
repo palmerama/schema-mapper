@@ -1,6 +1,11 @@
-import {useQuery, useClient, useSanityInstance} from '@sanity/sdk-react'
-import {useMemo, useState, useEffect} from 'react'
+import {useClient} from '@sanity/sdk-react'
+import {useState, useEffect} from 'react'
 import type {DiscoveredType, DiscoveredField} from '../types'
+import {useDeployedSchema} from './useDeployedSchema'
+
+// ============================================================================
+// Inference-based schema discovery (original approach — used as fallback)
+// ============================================================================
 
 /**
  * Infer field type from a sample value
@@ -117,9 +122,10 @@ async function resolveReferenceTargets(
 }
 
 /**
- * Hook to discover schema types from a dataset by sampling documents
+ * Hook to discover schema types from a dataset by sampling documents.
+ * This is the original inference-based approach, kept as fallback.
  */
-export function useSchemaDiscovery(): {
+function useSchemaDiscoveryInference(): {
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
@@ -196,4 +202,50 @@ export function useSchemaDiscovery(): {
   }, [client])
 
   return {types, isLoading, error}
+}
+
+// ============================================================================
+// Main hook — tries deployed schema first, falls back to inference
+// ============================================================================
+
+/**
+ * Hook to discover schema types for the current dataset.
+ *
+ * Strategy:
+ * 1. First tries the deployed schema API (fast, accurate, returns actual schema definitions)
+ * 2. If no deployed schema exists (studio hasn't deployed schema), falls back to
+ *    document-sampling inference (slower, less accurate but works for any dataset)
+ */
+export function useSchemaDiscovery(): {
+  types: DiscoveredType[]
+  isLoading: boolean
+  error: Error | null
+} {
+  const deployed = useDeployedSchema()
+  const inference = useSchemaDiscoveryInference()
+
+  // While deployed schema is still loading, show loading state
+  if (deployed.isLoading) {
+    return {
+      types: [],
+      isLoading: true,
+      error: null,
+    }
+  }
+
+  // If deployed schema returned results, use them
+  if (deployed.hasDeployedSchema && deployed.types.length > 0) {
+    return {
+      types: deployed.types,
+      isLoading: false,
+      error: deployed.error,
+    }
+  }
+
+  // No deployed schema — fall back to inference
+  return {
+    types: inference.types,
+    isLoading: inference.isLoading,
+    error: inference.error,
+  }
 }

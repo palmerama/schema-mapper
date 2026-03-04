@@ -64,83 +64,28 @@ function getHandleAwareSourcePoint(
   const height = sourceNode.measured.height ?? 100
   const pos = sourceNode.internals.positionAbsolute
 
-  // If we have a specific handle, use its Y position as the source point
-  // instead of the node center
-  let sourceY = pos.y + height / 2 // default: center
+  // Default: vertical center
+  let sourceY = pos.y + height / 2
 
   if (sourceHandleId) {
     const handles = sourceNode.internals.handleBounds?.source
     const handle = handles?.find((h) => h.id === sourceHandleId)
     if (handle) {
-      // handle.y is relative to the node, handle.height is the handle size
+      // Pin to the handle's Y position
       sourceY = pos.y + handle.y + (handle.height ?? 0) / 2
-      console.debug('[FloatingEdge]', sourceHandleId, 'handle.y:', handle.y, 'handle.h:', handle.height, 'nodeH:', height, 'sourceY:', sourceY)
     }
   }
 
-  const sourceX = pos.x + width / 2 // still use center X
-
-  // Now find where the line from (sourceX, sourceY) to target center
-  // intersects the source node's border
+  // Exit from the side closest to the target node
   const targetCenterX =
     targetNode.internals.positionAbsolute.x +
     (targetNode.measured.width ?? 280) / 2
-  const targetCenterY =
-    targetNode.internals.positionAbsolute.y +
-    (targetNode.measured.height ?? 100) / 2
+  const sourceCenterX = pos.x + width / 2
+  const sourceX = targetCenterX >= sourceCenterX
+    ? pos.x + width  // target is to the right → exit right
+    : pos.x          // target is to the left → exit left
 
-  // Direction vector from source point to target center
-  const dx = targetCenterX - sourceX
-  const dy = targetCenterY - sourceY
-
-  // Find intersection with source node border
-  // The source point is at (sourceX, sourceY) which may not be the center
-  // We need to find where the ray from (sourceX, sourceY) toward the target
-  // exits the source node's bounding box [pos.x, pos.y, pos.x+width, pos.y+height]
-
-  const left = pos.x
-  const right = pos.x + width
-  const top = pos.y
-  const bottom = pos.y + height
-
-  // Parametric ray: P(t) = (sourceX + t*dx, sourceY + t*dy)
-  // Find smallest positive t where P(t) hits a border
-  let tMin = Infinity
-
-  if (dx !== 0) {
-    const tLeft = (left - sourceX) / dx
-    const tRight = (right - sourceX) / dx
-    for (const t of [tLeft, tRight]) {
-      if (t > 0) {
-        const hitY = sourceY + t * dy
-        if (hitY >= top - 1 && hitY <= bottom + 1) {
-          tMin = Math.min(tMin, t)
-        }
-      }
-    }
-  }
-  if (dy !== 0) {
-    const tTop = (top - sourceY) / dy
-    const tBottom = (bottom - sourceY) / dy
-    for (const t of [tTop, tBottom]) {
-      if (t > 0) {
-        const hitX = sourceX + t * dx
-        if (hitX >= left - 1 && hitX <= right + 1) {
-          tMin = Math.min(tMin, t)
-        }
-      }
-    }
-  }
-
-  if (tMin === Infinity) {
-    // Fallback: source point is on the border already or something weird
-    return { x: sourceX, y: sourceY }
-  }
-
-  return {
-    x: sourceX + tMin * dx,
-    y: sourceY + tMin * dy,
-  }
+  return { x: sourceX, y: sourceY }
 }
 
 // ---------------------------------------------------------------------------

@@ -5,11 +5,14 @@ import { GoDownload } from 'react-icons/go'
 
 export interface ExportContext {
   projectName: string
+  projectId: string
   datasetName: string
   aclMode: string
   totalDocuments: number
   typeCount: number
+  schemaSource: 'deployed' | 'inferred' | null
   orgId?: string
+  orgName?: string
 }
 
 interface ExportDropdownProps {
@@ -147,10 +150,13 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
       pdf.setFontSize(5)
       pdf.setTextColor(170)
       const metaParts: string[] = ['Schema Mapper']
-      if (context.orgId) metaParts.push(context.orgId)
+      if (context.orgName) metaParts.push(context.orgName)
+      if (context.orgId) metaParts.push(`org: ${context.orgId}`)
       metaParts.push(context.projectName)
+      metaParts.push(`project: ${context.projectId}`)
       metaParts.push(`${context.datasetName} (${context.aclMode})`)
       metaParts.push(`${context.totalDocuments.toLocaleString()} docs · ${context.typeCount} types`)
+      if (context.schemaSource) metaParts.push(`${context.schemaSource} schema`)
       metaParts.push(now)
       pdf.text(metaParts.join('  ·  '), margin, margin + 3)
 

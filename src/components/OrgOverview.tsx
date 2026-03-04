@@ -186,7 +186,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
-            <span>v1.7</span>
+            <span>v1.8</span>
           </div>
         )}
       </div>
@@ -287,10 +287,12 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                     graphRef={graphRef}
                     context={{
                       projectName: selectedProject.displayName,
+                      projectId: selectedProject.id,
                       datasetName: selectedDataset.name,
                       aclMode: selectedDataset.aclMode,
                       totalDocuments: selectedDataset.totalDocuments,
                       typeCount: effectiveTypes.length,
+                      schemaSource: effectiveSource,
                       orgId: orgId ?? undefined,
                     }}
                   />

@@ -218,7 +218,11 @@ function resolveField(
 // --- Studio Schema Format Parser ---
 // Studio format: { name, type, fields: [{ name, type, of?, to? }] }
 
-function mapStudioField(field: any): DiscoveredField {
+function mapStudioField(
+  field: any,
+  allTypeNames?: Set<string>,
+  documentTypeNames?: Set<string>,
+): DiscoveredField {
   const {name, type} = field
 
   switch (type) {
@@ -275,13 +279,34 @@ function mapStudioField(field: any): DiscoveredField {
     case 'object':
       return {name, type: 'object'}
     default:
-      return {name, type: 'unknown'}
+      // Check if the type name matches a known document type — inline object reference
+      if (documentTypeNames?.has(type)) {
+        return {
+          name,
+          type: 'reference',
+          isReference: true,
+          referenceTo: type,
+        }
+      }
+      // Check if it matches any known type — treat as object
+      if (allTypeNames?.has(type)) {
+        return {name, type: 'object'}
+      }
+      return {name, type: 'object'}
   }
 }
 
 function parseStudioSchema(
   schema: any[],
 ): {name: string; fields: DiscoveredField[]}[] {
+  // Collect all type names for detecting inline object references
+  const allTypeNames = new Set<string>(schema.map((entry: any) => entry.name))
+  const documentTypeNames = new Set<string>(
+    schema
+      .filter((entry: any) => entry.type === 'document')
+      .map((entry: any) => entry.name),
+  )
+
   const documentTypes = schema.filter(
     (entry: any) =>
       entry.type === 'document' &&
@@ -292,7 +317,7 @@ function parseStudioSchema(
   return documentTypes.map((docType: any) => {
     const fields: DiscoveredField[] = (docType.fields || [])
       .filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
-      .map((f: any) => mapStudioField(f))
+      .map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
 
     return {
       name: docType.name,

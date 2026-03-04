@@ -72,7 +72,8 @@ function FieldRow({
   refIndex: number; // -1 if not a reference
 }) {
   const isRef = field.isReference || field.type === 'reference';
-  const style = fieldBadgeStyle(field.type);
+  const isInline = field.isInlineObject === true;
+  const style = fieldBadgeStyle(isInline ? 'object' : field.type);
   const even = index % 2 === 0;
 
   return (
@@ -81,11 +82,12 @@ function FieldRow({
         relative flex items-center justify-between gap-2 px-3 py-1.5 text-xs
         ${even ? 'bg-transparent' : 'bg-muted/40'}
         ${isRef ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}
+        ${isInline ? 'bg-violet-50/60 dark:bg-violet-950/20' : ''}
       `}
     >
       {/* Field name */}
       <span
-        className={`truncate font-mono ${isRef ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-card-foreground'}`}
+        className={`truncate font-mono ${isRef ? 'font-medium text-indigo-700 dark:text-indigo-300' : isInline ? 'font-medium text-violet-700 dark:text-violet-300' : 'text-card-foreground'}`}
         title={field.name}
       >
         {field.name}
@@ -94,15 +96,15 @@ function FieldRow({
       {/* Type badge */}
       <Badge
         variant={style.variant}
-        className={`shrink-0 px-1.5 py-0 text-[10px] leading-4 font-normal ${style.className}`}
+        className={`shrink-0 px-1.5 py-0 text-[10px] leading-4 font-normal ${style.className} ${isInline ? '!bg-violet-100 !text-violet-700 dark:!bg-violet-900 dark:!text-violet-300' : ''}`}
       >
         {isRef && <ArrowRight className="mr-0.5 h-2.5 w-2.5" />}
-        {field.type}
+        {isInline ? field.referenceTo : field.type}
         {field.isArray && '[]'}
       </Badge>
 
-      {/* Source handle for reference fields — invisible, floating edges handle visuals */}
-      {isRef && (
+      {/* Source handle for reference and inline object fields — invisible, floating edges handle visuals */}
+      {(isRef || isInline) && (
         <Handle
           type="source"
           position={Position.Right}
@@ -130,7 +132,7 @@ function SchemaNode({ data }: NodeProps<SchemaNodeType>) {
   const refFields = useMemo(
     () =>
       fields.reduce<Record<string, number>>((acc, f, _i) => {
-        if (f.isReference || f.type === 'reference') {
+        if (f.isReference || f.isInlineObject || f.type === 'reference') {
           acc[f.name] = Object.keys(acc).length;
         }
         return acc;

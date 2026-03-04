@@ -279,12 +279,12 @@ function mapStudioField(
     case 'object':
       return {name, type: 'object'}
     default:
-      // Check if the type name matches a known document type — inline object reference
+      // Check if the type name matches a known document type — inline object (not a reference)
       if (documentTypeNames?.has(type)) {
         return {
           name,
-          type: 'reference',
-          isReference: true,
+          type: 'object',
+          isInlineObject: true,
           referenceTo: type,
         }
       }
@@ -315,9 +315,18 @@ function parseStudioSchema(
   )
 
   return documentTypes.map((docType: any) => {
-    const fields: DiscoveredField[] = (docType.fields || [])
-      .filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
-      .map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
+    const rawFields = docType.fields || []
+    const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+    const fields: DiscoveredField[] = filtered.map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
+
+    console.log(
+      '[Schema Mapper] Studio parser:',
+      docType.name,
+      'raw fields:', rawFields.length,
+      'after filter:', filtered.length,
+      'names:', filtered.map((f: any) => f.name).join(', '),
+      'inline objects:', fields.filter(f => f.isInlineObject).map(f => `${f.name}→${f.referenceTo}`).join(', ') || 'none',
+    )
 
     return {
       name: docType.name,

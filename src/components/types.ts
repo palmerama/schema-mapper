@@ -4,6 +4,7 @@ export type DiscoveredField = {
   isReference?: boolean
   referenceTo?: string
   isArray?: boolean
+  isInlineObject?: boolean
 }
 
 export type DiscoveredType = {

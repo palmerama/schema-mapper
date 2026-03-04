@@ -209,9 +209,9 @@ async function getElkLayout(spacing: number,
       },
     })
 
-    // Source ports for reference fields (right side)
+    // Source ports for reference and inline object fields (right side)
     node.data.fields.forEach((field: DiscoveredField) => {
-      if (field.isReference || field.type === 'reference') {
+      if (field.isReference || field.isInlineObject || field.type === 'reference') {
         ports.push({
           id: `${node.id}-ref-${field.name}`,
           layoutOptions: {
@@ -393,12 +393,14 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
 
   types.forEach((type) => {
     type.fields.forEach((field) => {
-      if (field.isReference && field.referenceTo && typeNames.has(field.referenceTo)) {
+      const hasEdge = (field.isReference || field.isInlineObject) && field.referenceTo && typeNames.has(field.referenceTo)
+      if (hasEdge) {
         if (!sourceColorMap.has(type.name)) {
           sourceColorMap.set(type.name, edgeColors[colorIdx % edgeColors.length])
           colorIdx++
         }
         const color = sourceColorMap.get(type.name)!
+        const isInline = field.isInlineObject
         edges.push({
           id: `${type.name}-${field.name}->${field.referenceTo}`,
           source: type.name,
@@ -414,7 +416,12 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
             height: 15,
             color,
           },
-          style: { stroke: color, strokeWidth: 1.5 },
+          style: {
+            stroke: color,
+            strokeWidth: 1.5,
+            ...(isInline ? { strokeDasharray: '6 3' } : {}),
+          },
+          data: { isInlineObject: isInline },
         })
       }
     })

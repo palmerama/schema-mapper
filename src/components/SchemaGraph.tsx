@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -586,6 +586,48 @@ function GraphControls({
 function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   const { fitView } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Fix: React Flow's NodeWrapper adds 'nopan' to draggable nodes, which blocks
+  // panOnScroll wheel events over nodes. We add a capture-phase listener that
+  // re-dispatches wheel events from nodes directly on the .react-flow__renderer
+  // element, bypassing the nopan check.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handler = (e: WheelEvent) => {
+      const target = e.target as HTMLElement
+      // Only intercept events on nodes (not on the pane/background itself)
+      if (!target.closest('.react-flow__node')) return
+
+      const renderer = container.querySelector('.react-flow__renderer')
+      if (!renderer) return
+
+      // Stop the original event from reaching d3's handler (which would be blocked by nopan)
+      e.stopPropagation()
+
+      // Dispatch a cloned event directly on the renderer element
+      const cloned = new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        deltaZ: e.deltaZ,
+        deltaMode: e.deltaMode,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+      })
+      renderer.dispatchEvent(cloned)
+    }
+
+    container.addEventListener('wheel', handler, { capture: true, passive: false })
+    return () => container.removeEventListener('wheel', handler, { capture: true })
+  }, [])
   const [layoutApplied, setLayoutApplied] = useState(false)
   const [layoutType, setLayoutType] = useState<LayoutType>(() => {
     try {
@@ -718,7 +760,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   }, [layoutType, handleSpacingChange])
 
   return (
-    <div className="relative w-full h-full">
+    <div ref={containerRef} className="relative w-full h-full">
       <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} edgeStyle={edgeStyle} onEdgeStyleChange={handleEdgeStyleChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
       {isLayouting && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500">

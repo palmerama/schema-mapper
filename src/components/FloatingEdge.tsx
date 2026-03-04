@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   useInternalNode,
   getBezierPath,
@@ -11,6 +12,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Utility: find the point where an edge exits/enters a node's border
+// (Used for the TARGET side, where we don't need handle-awareness)
 // ---------------------------------------------------------------------------
 
 function getNodeIntersection(
@@ -47,21 +49,119 @@ function getNodeIntersection(
   return { x, y }
 }
 
+// ---------------------------------------------------------------------------
+// Utility: handle-aware source point calculation
+// Uses the actual handle Y position so edges from different reference fields
+// don't overlap on the node border.
+// ---------------------------------------------------------------------------
+
+function getHandleAwareSourcePoint(
+  sourceNode: InternalNode<Node>,
+  targetNode: InternalNode<Node>,
+  sourceHandleId?: string | null,
+): { x: number; y: number } {
+  const width = sourceNode.measured.width ?? 280
+  const height = sourceNode.measured.height ?? 100
+  const pos = sourceNode.internals.positionAbsolute
+
+  // If we have a specific handle, use its Y position as the source point
+  // instead of the node center
+  let sourceY = pos.y + height / 2 // default: center
+
+  if (sourceHandleId) {
+    const handles = sourceNode.internals.handleBounds?.source
+    const handle = handles?.find((h) => h.id === sourceHandleId)
+    if (handle) {
+      // handle.y is relative to the node, handle.height is the handle size
+      sourceY = pos.y + handle.y + (handle.height ?? 0) / 2
+    }
+  }
+
+  const sourceX = pos.x + width / 2 // still use center X
+
+  // Now find where the line from (sourceX, sourceY) to target center
+  // intersects the source node's border
+  const targetCenterX =
+    targetNode.internals.positionAbsolute.x +
+    (targetNode.measured.width ?? 280) / 2
+  const targetCenterY =
+    targetNode.internals.positionAbsolute.y +
+    (targetNode.measured.height ?? 100) / 2
+
+  // Direction vector from source point to target center
+  const dx = targetCenterX - sourceX
+  const dy = targetCenterY - sourceY
+
+  // Find intersection with source node border
+  // The source point is at (sourceX, sourceY) which may not be the center
+  // We need to find where the ray from (sourceX, sourceY) toward the target
+  // exits the source node's bounding box [pos.x, pos.y, pos.x+width, pos.y+height]
+
+  const left = pos.x
+  const right = pos.x + width
+  const top = pos.y
+  const bottom = pos.y + height
+
+  // Parametric ray: P(t) = (sourceX + t*dx, sourceY + t*dy)
+  // Find smallest positive t where P(t) hits a border
+  let tMin = Infinity
+
+  if (dx !== 0) {
+    const tLeft = (left - sourceX) / dx
+    const tRight = (right - sourceX) / dx
+    for (const t of [tLeft, tRight]) {
+      if (t > 0) {
+        const hitY = sourceY + t * dy
+        if (hitY >= top - 1 && hitY <= bottom + 1) {
+          tMin = Math.min(tMin, t)
+        }
+      }
+    }
+  }
+  if (dy !== 0) {
+    const tTop = (top - sourceY) / dy
+    const tBottom = (bottom - sourceY) / dy
+    for (const t of [tTop, tBottom]) {
+      if (t > 0) {
+        const hitX = sourceX + t * dx
+        if (hitX >= left - 1 && hitX <= right + 1) {
+          tMin = Math.min(tMin, t)
+        }
+      }
+    }
+  }
+
+  if (tMin === Infinity) {
+    // Fallback: source point is on the border already or something weird
+    return { x: sourceX, y: sourceY }
+  }
+
+  return {
+    x: sourceX + tMin * dx,
+    y: sourceY + tMin * dy,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Utility: determine which side of the node the intersection point is on
+// ---------------------------------------------------------------------------
+
 function getEdgePosition(
   node: InternalNode<Node>,
   intersectionPoint: { x: number; y: number },
 ): Position {
-  const nx = Math.round(node.internals.positionAbsolute.x)
-  const ny = Math.round(node.internals.positionAbsolute.y)
+  const nx = node.internals.positionAbsolute.x
+  const ny = node.internals.positionAbsolute.y
   const nw = node.measured.width ?? 280
   const nh = node.measured.height ?? 100
-  const px = Math.round(intersectionPoint.x)
-  const py = Math.round(intersectionPoint.y)
+  const px = intersectionPoint.x
+  const py = intersectionPoint.y
+  const EPS = 2
 
-  if (px <= nx + 1) return Position.Left
-  if (px >= nx + nw - 1) return Position.Right
-  if (py <= ny + 1) return Position.Top
-  if (py >= ny + nh - 1) return Position.Bottom
+  if (px <= nx + EPS) return Position.Left
+  if (px >= nx + nw - EPS) return Position.Right
+  if (py <= ny + EPS) return Position.Top
+  if (py >= ny + nh - EPS) return Position.Bottom
 
   return Position.Top
 }
@@ -70,17 +170,15 @@ function getEdgePosition(
 // FloatingEdge component
 // ---------------------------------------------------------------------------
 
-export default function FloatingEdge({
+export default memo(function FloatingEdge({
   id,
   source,
+  sourceHandleId,
   target,
   markerEnd,
   style,
   label,
   labelStyle,
-  labelBgStyle,
-  labelBgPadding,
-  labelBgBorderRadius,
 }: EdgeProps) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
@@ -89,7 +187,15 @@ export default function FloatingEdge({
     return null
   }
 
-  const sourceIntersection = getNodeIntersection(sourceNode, targetNode)
+  // Source side: use handle-aware calculation so edges from different
+  // reference fields fan out from their respective handle positions
+  const sourceIntersection = getHandleAwareSourcePoint(
+    sourceNode,
+    targetNode,
+    sourceHandleId,
+  )
+
+  // Target side: use center-to-center intersection (handles are uniform)
   const targetIntersection = getNodeIntersection(targetNode, sourceNode)
 
   const sourcePos = getEdgePosition(sourceNode, sourceIntersection)
@@ -115,19 +221,13 @@ export default function FloatingEdge({
       {label && (
         <EdgeLabelRenderer>
           <div
+            className="nodrag nopan text-[11px] font-normal text-slate-500 dark:text-slate-400 bg-slate-50/85 dark:bg-slate-900/85 px-1.5 py-0.5 rounded"
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              fontSize: 11,
-              fontWeight: 500,
-              color: '#64748b',
-              background: 'rgba(248, 250, 252, 0.85)',
-              padding: '3px 6px',
-              borderRadius: 4,
               pointerEvents: 'all',
               ...(labelStyle as React.CSSProperties),
             }}
-            className="nodrag nopan"
           >
             {label}
           </div>
@@ -135,4 +235,4 @@ export default function FloatingEdge({
       )}
     </>
   )
-}
+})

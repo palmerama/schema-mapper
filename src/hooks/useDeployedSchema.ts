@@ -330,6 +330,16 @@ export function useDeployedSchema(): {
           try {
             schemaData = JSON.parse(raw)
             console.log('[Schema Mapper] Parsed JSON string, got', schemaData.length, 'entries')
+            if (schemaData.length > 0) {
+              console.log('[Schema Mapper] First entry keys:', Object.keys(schemaData[0]))
+              console.log('[Schema Mapper] First entry sample:', JSON.stringify(schemaData[0]).substring(0, 500))
+              // Find a document type
+              const docSample = schemaData.find((e: any) => e.type === 'document')
+              if (docSample) {
+                console.log('[Schema Mapper] Doc type sample keys:', Object.keys(docSample))
+                console.log('[Schema Mapper] Doc type sample:', JSON.stringify(docSample).substring(0, 800))
+              }
+            }
           } catch {
             console.warn('[Schema Mapper] Failed to parse schema JSON string')
           }

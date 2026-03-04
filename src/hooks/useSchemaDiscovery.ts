@@ -242,10 +242,9 @@ export function useSchemaDiscovery(): {
 } {
   const deployed = useDeployedSchema()
 
-  // Inference starts only after deployed resolves (sequential)
-  const inference = useSchemaDiscoveryInference(!deployed.isLoading)
-
+  // Inference only runs if no deployed schema is available
   const hasDeployedSchema = deployed.hasDeployedSchema && deployed.types.length > 0
+  const inference = useSchemaDiscoveryInference(!deployed.isLoading && !hasDeployedSchema)
   const deployedTypes = hasDeployedSchema ? deployed.types : null
   const inferredTypes = !inference.isLoading ? inference.types : null
 

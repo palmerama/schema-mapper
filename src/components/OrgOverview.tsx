@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
-import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner } from '@sanity/ui'
+import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -202,20 +202,24 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
         <>
           {/* ---- Navigation Grid ---- */}
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
-            {accessibleProjects.length > 1 && (
-              <>
+            <>
                 <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
                 <div className="flex items-start gap-2">
                   <TabList space={1}>
                     {accessibleProjects.map(project => (
-                      <Tab
+                      <Tooltip
                         key={project.id}
-                        aria-controls={`project-panel-${project.id}`}
-                        id={`project-tab-${project.id}`}
-                        label={project.displayName}
-                        selected={selectedProjectId === project.id}
-                        onClick={() => handleProjectSelect(project.id)}
-                      />
+                        content={<Text size={1} muted>{project.id}</Text>}
+                        placement="bottom"
+                      >
+                        <Tab
+                          aria-controls={`project-panel-${project.id}`}
+                          id={`project-tab-${project.id}`}
+                          label={project.displayName}
+                          selected={selectedProjectId === project.id}
+                          onClick={() => handleProjectSelect(project.id)}
+                        />
+                      </Tooltip>
                     ))}
                   </TabList>
                   {lockedProjects.length > 0 && (
@@ -228,7 +232,6 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   )}
                 </div>
               </>
-            )}
 
             {selectedProject && selectedProject.datasets.length > 0 && (
               <>

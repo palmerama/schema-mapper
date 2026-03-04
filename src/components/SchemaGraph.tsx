@@ -35,6 +35,7 @@ type SchemaNode_RF = Node<SchemaNodeData, 'schema'>
 type SchemaEdge = Edge
 
 type LayoutType = 'dagre' | 'layered' | 'force' | 'stress'
+type EdgeStyle = 'bezier' | 'step' | 'straight'
 
 // ---------------------------------------------------------------------------
 // Node & edge types — defined OUTSIDE the component
@@ -110,6 +111,8 @@ const layoutLabels: Record<LayoutType, string> = {
   force: 'Force',
   stress: 'Clustered',
 }
+const edgeStyleLabels: Record<EdgeStyle, string> = { bezier: 'Bezier', step: 'Step', straight: 'Straight' }
+const edgeStyleToType: Record<EdgeStyle, string> = { bezier: 'floating', step: 'smoothstep', straight: 'straight' }
 
 function getDagreLayout(
   nodes: SchemaNode_RF[],
@@ -441,17 +444,22 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
 function GraphControls({
   layout,
   onLayoutChange,
+  edgeStyle,
+  onEdgeStyleChange,
   spacing,
   onSpacingChange,
   onResetSpacing,
 }: {
   layout: LayoutType
   onLayoutChange: (layout: LayoutType) => void
+  edgeStyle: EdgeStyle
+  onEdgeStyleChange: (style: EdgeStyle) => void
   spacing: number
   onSpacingChange: (value: number) => void
   onResetSpacing: () => void
 }) {
   const layouts: LayoutType[] = ['dagre', 'layered', 'force', 'stress']
+  const edgeStyles: EdgeStyle[] = ['bezier', 'step', 'straight']
 
   return (
     <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
@@ -463,6 +471,17 @@ function GraphControls({
             label={layoutLabels[l]}
             selected={layout === l}
             onClick={() => onLayoutChange(l)}
+          />
+        ))}
+      </div>
+      <div className="flex gap-1">
+        {edgeStyles.map((s) => (
+          <Tab
+            key={s}
+            id={`edge-tab-${s}`}
+            label={edgeStyleLabels[s]}
+            selected={edgeStyle === s}
+            onClick={() => onEdgeStyleChange(s)}
           />
         ))}
       </div>
@@ -508,6 +527,13 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     return 'layered'
   })
   const [isLayouting, setIsLayouting] = useState(false)
+  const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>(() => {
+    try {
+      const saved = localStorage.getItem('schema-mapper:edgeStyle')
+      if (saved && ['bezier', 'step', 'straight'].includes(saved)) return saved as EdgeStyle
+    } catch {}
+    return 'bezier'
+  })
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => buildNodesAndEdges(types),
@@ -532,6 +558,12 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     return defaults
   })
   const spacing = spacingMap[layoutType]
+
+  const handleEdgeStyleChange = useCallback((style: EdgeStyle) => {
+    setEdgeStyle(style)
+    try { localStorage.setItem('schema-mapper:edgeStyle', style) } catch {}
+    setEdges((eds) => eds.map(e => ({ ...e, type: edgeStyleToType[style] })))
+  }, [setEdges])
 
 
 
@@ -573,6 +605,11 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     }
   }, [setNodes, fitView])
 
+  // Update edge types when style changes
+  useEffect(() => {
+    setEdges((eds) => eds.map(e => ({ ...e, type: edgeStyleToType[edgeStyle] })))
+  }, [edgeStyle, setEdges])
+
   // Initial layout after nodes are measured
   useEffect(() => {
     if (nodesInitialized && !layoutApplied) {
@@ -603,7 +640,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   return (
     <div className="relative w-full h-full">
-      <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
+      <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} edgeStyle={edgeStyle} onEdgeStyleChange={handleEdgeStyleChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
       {isLayouting && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500">
           Layouting…

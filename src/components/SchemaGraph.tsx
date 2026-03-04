@@ -605,7 +605,9 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
       if (!renderer) return
 
       // Stop the original event from reaching d3's handler (which would be blocked by nopan)
+      // and prevent browser's native pinch-zoom
       e.stopPropagation()
+      e.preventDefault()
 
       // Dispatch a cloned event directly on the renderer element
       const cloned = new WheelEvent('wheel', {

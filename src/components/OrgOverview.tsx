@@ -69,7 +69,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
   // ---- State ----
   const graphRef = useRef<HTMLDivElement>(null)
   const [showLockedDialog, setShowLockedDialog] = useState(false)
-  const [schemaViewOverride, setSchemaViewOverride] = useState<'deployed' | 'inferred' | null>(null)
+  const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
 
   const lockedProjects = projects.filter(p => p.hasAccess === false)
   const accessibleProjects = projects.filter(p => p.hasAccess !== false)
@@ -136,24 +136,13 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
     }
   }, [selectedProjectId, selectedDatasetName, projects, navigateTo])
 
-  // Reset schema view override when switching datasets
-  useEffect(() => {
-    setSchemaViewOverride(null)
-  }, [selectedProjectId, selectedDatasetName])
-
   // Derived state
   const selectedProject = projects.find(p => p.id === selectedProjectId)
   const selectedDataset = selectedProject?.datasets.find(d => d.name === selectedDatasetName)
 
-  // Compute effective types based on override
-  const effectiveSource = schemaViewOverride ?? selectedDataset?.schemaSource ?? null
-  const effectiveTypes = selectedDataset
-    ? (effectiveSource === 'deployed' && selectedDataset.deployedTypes
-        ? selectedDataset.deployedTypes
-        : effectiveSource === 'inferred' && selectedDataset.inferredTypes
-        ? selectedDataset.inferredTypes
-        : selectedDataset.types)
-    : []
+  // Use the active schema source directly — deployed if available, inferred otherwise
+  const effectiveSource = selectedDataset?.schemaSource ?? null
+  const effectiveTypes = selectedDataset?.types ?? []
 
   // ---- Handlers ----
   const handleProjectSelect = (projectId: string) => {
@@ -164,14 +153,6 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
 
   const handleDatasetSelect = (datasetName: string) => {
     navigateTo(selectedProjectId, datasetName)
-  }
-
-  const handleToggleSchemaView = () => {
-    if (!selectedDataset?.hasDeployedSchema) return
-    setSchemaViewOverride(prev => {
-      const current = prev ?? selectedDataset?.schemaSource ?? 'inferred'
-      return current === 'deployed' ? 'inferred' : 'deployed'
-    })
   }
 
   // ---- Compute aggregate stats ----
@@ -288,12 +269,11 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                     (effectiveSource === 'deployed'
                       ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
                       : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal')
-                    + (selectedDataset.hasDeployedSchema ? ' cursor-pointer select-none' : '')
+                    + ' cursor-pointer select-none'
                   }
-                  onClick={selectedDataset.hasDeployedSchema ? handleToggleSchemaView : undefined}
+                  onClick={() => setShowSchemaInfoDialog(true)}
                 >
                   {effectiveSource === 'deployed' ? 'deployed schema' : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</>}
-                  {selectedDataset.hasDeployedSchema && ' ⇄'}
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
@@ -328,6 +308,55 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
             )}
           </div>
         </>
+      )}
+
+      {/* ---- Schema Info Dialog ---- */}
+      {showSchemaInfoDialog && (
+        <Dialog
+          id="schema-info-dialog"
+          header=""
+          onClose={() => setShowSchemaInfoDialog(false)}
+          width={1}
+          animate
+        >
+          <Box padding={4} paddingTop={0}>
+            <Stack space={4}>
+              <h2 className="text-2xl font-normal tracking-tight">Schema sources</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Schema Mapper can read your schema from two different sources. The source used for the current dataset is shown in the badge next to the dataset info.
+              </p>
+
+              <div className="space-y-4">
+                <div className="rounded-md border px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal">deployed schema</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Read from the schema that your Sanity Studio has deployed to the Content Lake. This is the most accurate source — it reflects the exact document types, fields, and references defined in your Studio configuration. Deployed schema is available when a Studio has been deployed using <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code> or via CI/CD.
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-amber-200 bg-amber-50/50 px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal"><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    When no deployed schema is available, Schema Mapper infers the schema by sampling documents in the dataset. This is a best-effort approach with some limitations:
+                  </p>
+                  <ul className="text-sm text-muted-foreground leading-relaxed list-disc pl-5 space-y-1">
+                    <li>Only document types with existing documents are discovered — empty types won't appear</li>
+                    <li>Field types are guessed from document values and may not always be accurate</li>
+                    <li>Reference targets are resolved from actual document references, so unused references won't show</li>
+                    <li>Document counts are exact, but the schema structure is approximate</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    To get the most accurate schema, deploy your Studio with <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code>.
+                  </p>
+                </div>
+              </div>
+            </Stack>
+          </Box>
+        </Dialog>
       )}
 
       {/* ---- Locked Projects Dialog ---- */}

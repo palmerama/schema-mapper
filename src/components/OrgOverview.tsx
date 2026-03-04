@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock } from 'react-icons/go'
-import { RiAlertFill } from 'react-icons/ri'
+import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -273,7 +273,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
                 >
-                  {effectiveSource === 'deployed' ? 'deployed schema' : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</>}
+                  {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</> : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</>}
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
@@ -329,7 +329,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
               <div className="space-y-4">
                 <div className="rounded-md border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal">deployed schema</Badge>
+                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal"><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Read from the schema that your Sanity Studio has deployed to the Content Lake. This is the most accurate source — it reflects the exact document types, fields, and references defined in your Studio configuration. Deployed schema is available when a Studio has been deployed using <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code> or via CI/CD.

@@ -102,9 +102,10 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
     if (!el) return
     setExporting('pdf')
     try {
-      // Capture as SVG
-      const svgDataUrl = await toSvg(el, {
+      // Capture at high res
+      const dataUrl = await toPng(el, {
         backgroundColor: '#ffffff',
+        pixelRatio: 3,
         filter: (node) => {
           const cls = node.className?.toString?.() || ''
           if (cls.includes('react-flow__controls')) return false
@@ -113,20 +114,52 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
         },
       })
 
-      // Parse SVG from data URL
-      const svgString = decodeURIComponent(svgDataUrl.split(',')[1])
-      const parser = new DOMParser()
-      const svgDoc = parser.parseFromString(svgString, 'image/svg+xml')
-      const svgElement = svgDoc.documentElement
+      const img = new Image()
+      img.src = dataUrl
+      await new Promise((resolve) => { img.onload = resolve })
 
-      // Get SVG dimensions
-      const svgWidth = parseFloat(svgElement.getAttribute('width') || '800')
-      const svgHeight = parseFloat(svgElement.getAttribute('height') || '600')
-      const contentAspect = svgWidth / svgHeight
+      // Detect the actual content bounds (non-white pixels) to crop whitespace
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const { data, width, height } = imageData
 
+      let minX = width, minY = height, maxX = 0, maxY = 0
+      for (let y = 0; y < height; y += 2) {
+        for (let x = 0; x < width; x += 2) {
+          const i = (y * width + x) * 4
+          if (data[i] < 240 || data[i + 1] < 240 || data[i + 2] < 240) {
+            minX = Math.min(minX, x)
+            minY = Math.min(minY, y)
+            maxX = Math.max(maxX, x)
+            maxY = Math.max(maxY, y)
+          }
+        }
+      }
+
+      const cropPad = 40
+      minX = Math.max(0, minX - cropPad)
+      minY = Math.max(0, minY - cropPad)
+      maxX = Math.min(width, maxX + cropPad)
+      maxY = Math.min(height, maxY + cropPad)
+
+      const cropW = maxX - minX
+      const cropH = maxY - minY
+      const croppedCanvas = document.createElement('canvas')
+      croppedCanvas.width = cropW
+      croppedCanvas.height = cropH
+      const cropCtx = croppedCanvas.getContext('2d')!
+      cropCtx.fillStyle = '#ffffff'
+      cropCtx.fillRect(0, 0, cropW, cropH)
+      cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
+      const croppedUrl = croppedCanvas.toDataURL('image/png')
+
+      const contentAspect = cropW / cropH
       const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-      // Auto orientation based on content shape
       const orientation = contentAspect >= 1 ? 'landscape' : 'portrait'
       const pageW = orientation === 'landscape' ? 297 : 210
       const pageH = orientation === 'landscape' ? 210 : 297
@@ -160,16 +193,10 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
       metaParts.push(now)
       pdf.text(metaParts.join('  ·  '), margin, margin + 3)
 
-      // Render SVG as vector graphics in PDF
-      const { svg2pdf } = await import('svg2pdf.js')
+      // Graph image — centered, fills the page
       const imgX = margin + (availW - imgW) / 2
       const imgY = margin + headerH
-      await svg2pdf(svgElement, pdf, {
-        x: imgX,
-        y: imgY,
-        width: imgW,
-        height: imgH,
-      })
+      pdf.addImage(croppedUrl, 'PNG', imgX, imgY, imgW, imgH)
 
       pdf.save(`schema-${context.projectName}-${context.datasetName}.pdf`)
     } catch (err) {

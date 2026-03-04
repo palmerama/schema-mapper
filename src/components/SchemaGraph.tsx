@@ -54,7 +54,7 @@ const DEFAULT_SPACING: Record<LayoutType, number> = {
   dagre: 0.8,
   layered: 0.3,
   force: 0.2,
-  stress: 1.0,
+  stress: 1.3,
 }
 
 
@@ -604,7 +604,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<SchemaEdge>(initialEdges)
 
   const [spacingMap, setSpacingMap] = useState<Record<LayoutType, number>>(() => {
-    const defaults: Record<LayoutType, number> = { dagre: 0.8, layered: 0.3, force: 0.2, stress: 1.0 }
+    const defaults: Record<LayoutType, number> = { dagre: 0.8, layered: 0.3, force: 0.2, stress: 1.3 }
     try {
       const saved = localStorage.getItem('schema-mapper:spacingMap')
       if (saved) {

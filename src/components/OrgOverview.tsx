@@ -287,12 +287,12 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
                   className={
                     (effectiveSource === 'deployed'
                       ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-100 font-normal')
+                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal')
                     + (selectedDataset.hasDeployedSchema ? ' cursor-pointer select-none' : '')
                   }
                   onClick={selectedDataset.hasDeployedSchema ? handleToggleSchemaView : undefined}
                 >
-                  {effectiveSource === 'deployed' ? 'deployed schema' : <><RiAlertFill className="inline-block mr-1 -mt-0.5" />inferred schema</>}
+                  {effectiveSource === 'deployed' ? 'deployed schema' : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</>}
                   {selectedDataset.hasDeployedSchema && ' ⇄'}
                 </Badge>
               )}

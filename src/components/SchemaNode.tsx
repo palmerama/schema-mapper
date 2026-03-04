@@ -137,7 +137,7 @@ function SchemaNode({ data }: NodeProps<SchemaNodeType>) {
   const totalRefs = Object.keys(refFields).length;
 
   return (
-    <div className="nowheel rounded-md border bg-card text-card-foreground min-w-[200px] max-w-[280px] overflow-hidden">
+    <div className="rounded-md border bg-card text-card-foreground min-w-[200px] max-w-[280px] overflow-hidden">
       {/* ---- Invisible handles on all 4 sides for floating edge connections ---- */}
       <Handle
         type="target"

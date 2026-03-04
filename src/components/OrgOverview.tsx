@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock } from 'react-icons/go'
@@ -71,8 +71,8 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
 
-  const lockedProjects = projects.filter(p => p.hasAccess === false)
-  const accessibleProjects = projects.filter(p => p.hasAccess !== false)
+  const lockedProjects = useMemo(() => projects.filter(p => p.hasAccess === false), [projects])
+  const accessibleProjects = useMemo(() => projects.filter(p => p.hasAccess !== false), [projects])
 
   // localStorage key for this org
   const storageKey = orgId ? `schema-mapper:${orgId}:lastRoute` : null

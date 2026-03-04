@@ -170,7 +170,7 @@ function OrgOverview({ projects, isLoading = false, orgId }: OrgOverviewProps) {
   )
 
   return (
-    <div className="flex flex-col h-screen max-w-[1800px] mx-auto px-6">
+    <div className="flex flex-col h-screen px-6">
       {/* ---- Header with inline stats ---- */}
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-3">

@@ -186,7 +186,7 @@ function SchemaNode({ data }: NodeProps<SchemaNodeType>) {
       </div>
 
       {/* ---- Field list ---- */}
-      <div className="nowheel max-h-[300px] overflow-y-auto">
+      <div className="nowheel">
         {fields.length === 0 && (
           <div className="px-3 py-2 text-xs text-muted-foreground italic">
             No fields discovered

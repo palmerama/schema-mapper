@@ -65,7 +65,7 @@ const A4_W_PT = 595.28 // A4 width in points (portrait)
 const A4_H_PT = 841.89 // A4 height in points (portrait)
 const MARGIN_MM = 10
 const MARGIN_PT = MARGIN_MM * 2.835 // mm → pt
-const HEADER_H = 14 // pt for metadata header
+const HEADER_H = 36 // pt for metadata header
 
 // Node rendering constants (in graph-space units, will be scaled)
 const NODE_HEADER_H = 28
@@ -447,17 +447,6 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
     month: 'short',
     year: 'numeric',
   })
-  const metaParts: string[] = ['Schema Mapper']
-  if (context.orgName) metaParts.push(context.orgName)
-  if (context.orgId) metaParts.push(`org: ${context.orgId}`)
-  metaParts.push(context.projectName)
-  metaParts.push(`project: ${context.projectId}`)
-  metaParts.push(`${context.datasetName} (${context.aclMode})`)
-  metaParts.push(
-    `${context.totalDocuments.toLocaleString()} ${context.totalDocuments === 1 ? 'doc' : 'docs'} · ${context.typeCount} ${context.typeCount === 1 ? 'type' : 'types'}`,
-  )
-  if (context.schemaSource) metaParts.push(`${context.schemaSource} schema`)
-  metaParts.push(now)
 
   // SVG viewBox dimensions
   const vbParts = viewBox.split(' ').map(Number)
@@ -474,7 +463,7 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
           backgroundColor: '#ffffff',
         }}
       >
-        {/* Metadata header */}
+        {/* Structured metadata header */}
         <View
           style={{
             position: 'absolute',
@@ -484,15 +473,44 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
             height: HEADER_H,
           }}
         >
+          {/* Title row */}
           <Text
             style={{
-              fontSize: 5,
-              fontFamily: 'Helvetica',
-              color: '#aaaaaa',
+              fontSize: 9,
+              fontFamily: 'Helvetica-Bold',
+              color: '#333333',
+              marginBottom: 3,
             }}
           >
-            {metaParts.join('  ·  ')}
+            Schema Mapper
           </Text>
+          {/* Details row */}
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 2 }}>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#666666' }}>Org:</Text>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica', color: '#888888' }}>
+                {context.orgName ? `${context.orgName} (${context.orgId})` : context.orgId}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 2 }}>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#666666' }}>Project:</Text>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica', color: '#888888' }}>
+                {context.projectName} ({context.projectId})
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 2 }}>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#666666' }}>Dataset:</Text>
+              <Text style={{ fontSize: 6, fontFamily: 'Helvetica', color: '#888888' }}>
+                {context.datasetName} ({context.aclMode})
+              </Text>
+            </View>
+          </View>
+          {/* Stats row */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+            <Text style={{ fontSize: 5.5, fontFamily: 'Helvetica', color: '#aaaaaa' }}>
+              {context.totalDocuments.toLocaleString()} {context.totalDocuments === 1 ? 'document' : 'documents'}  ·  {context.typeCount} {context.typeCount === 1 ? 'type' : 'types'}  ·  {context.schemaSource ? `${context.schemaSource} schema` : ''}  ·  {now}
+            </Text>
+          </View>
         </View>
 
         {/* Graph SVG */}

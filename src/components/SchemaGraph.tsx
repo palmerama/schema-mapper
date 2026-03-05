@@ -802,6 +802,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        colorMode={isDark ? 'dark' : 'light'}
         fitView
         panOnScroll
         zoomOnScroll={false}

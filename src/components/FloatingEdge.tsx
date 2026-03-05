@@ -179,7 +179,10 @@ export default memo(function FloatingEdge({
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
-        style={style}
+        style={{
+          ...style,
+          transition: 'd 0.3s ease-in-out',
+        }}
       />
       {label && (
         <EdgeLabelRenderer>

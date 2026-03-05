@@ -5,6 +5,7 @@ import {buildTheme} from '@sanity/ui/theme'
 import {Suspense, useEffect, useState} from 'react'
 import {HashRouter, Routes, Route} from 'react-router-dom'
 import {LiveOrgOverview} from './components/LiveOrgOverview'
+import { FcFlowChart } from 'react-icons/fc'
 import './styles/globals.css'
 
 const theme = buildTheme()
@@ -28,7 +29,7 @@ function LoadingScreen() {
 function NotInDashboard() {
   return (
     <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-md mx-auto px-6 text-center">
-      <h1 className="text-2xl font-normal tracking-tight">Schema Mapper</h1>
+      <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" />Schema Mapper</h1>
       <p className="text-sm text-muted-foreground leading-relaxed">
         This app runs inside the <strong>Sanity Dashboard</strong>. Open your dashboard at{' '}
         <a href="https://www.sanity.io/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">sanity.io/manage</a>{' '}

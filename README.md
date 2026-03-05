@@ -49,7 +49,7 @@ This can be any project in your org — the App SDK uses it for authentication o
 npx sanity dev
 ```
 
-**Runs inside the Sanity dashboard**, not directly at localhost. The CLI will give you a dashboard URL to open.
+> ⚠️ **This app runs inside the [Sanity Dashboard](https://www.sanity.io/docs/dashboard)**, not directly at localhost. The CLI will give you a dashboard URL to open.
 
 ## Updating
 

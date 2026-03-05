@@ -186,7 +186,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             <span>·</span>
             <span>{formatNumber(totalTypes)} {totalTypes === 1 ? 'type' : 'types'}</span>
             <span>·</span>
-            <span>{formatNumber(totalDocuments)} documents</span>
+            <span>{formatNumber(totalDocuments)} {totalDocuments === 1 ? 'document' : 'documents'}</span>
             <span>·</span>
             <span>v1.8</span>
           </div>

@@ -245,7 +245,6 @@ function OrgOverview({
                       </Tooltip>
                     )
                   })}
-                  ))}
                 </TabList>
                 {isCheckingAccess && projects.length === 0 && (
                   <div className="flex items-center gap-2 mt-[3px]">

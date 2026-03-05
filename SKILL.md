@@ -86,7 +86,7 @@ cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.
 
 ### 4. Overwrite source files
 
-Copy everything from the extracted `schema-mapper-main/` directory into `<path>`, EXCEPT `sanity.cli.ts` and `src/App.tsx`.
+Copy everything from the extracted `schema-mapper-main/` directory into `<path>`, **EXCEPT `sanity.cli.ts` and `src/App.tsx`** — these contain the user's project and org IDs and MUST NOT be overwritten.
 
 ### 5. Restore config
 

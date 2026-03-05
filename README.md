@@ -15,6 +15,7 @@ Discovers all projects and datasets in your org, renders document types as an in
 - **Export** — PDF (vector), PNG (3x), SVG — PDF includes structured metadata header
 - **Multi-project** — Browse all org projects/datasets via tabs, locked projects shown separately
 - **Dark mode** — Follows system preference
+- **Version check** — In-app badge shows current version, pulsing dot when updates are available
 - **Persistence** — localStorage for settings, hash routing for shareable URLs
 
 ## Quick Start

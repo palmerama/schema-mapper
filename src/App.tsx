@@ -61,7 +61,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme} scheme={scheme}>
-      <Card scheme={scheme} style={{minHeight: '100vh', background: 'transparent'}}>
+      <Card scheme={scheme} style={{minHeight: '100vh'}}>
         <SanityApp config={config} fallback={<LoadingScreen />}>
           <Suspense fallback={<LoadingScreen />}>
             <HashRouter>

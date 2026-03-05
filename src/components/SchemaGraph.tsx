@@ -495,14 +495,24 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
   const incomingCount = new Map<string, number>()
   edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1))
 
-  // Compute sibling indices for step-edge offset (edges from same source)
-  const sourceGroups = new Map<string, number[]>()
+  // Compute sibling indices for step-edge offset.
+  // Group by source + exit side (left/right based on target position)
+  // so edges exiting the same side fan out, but opposite-side edges don't interfere.
+  const sourceExitGroups = new Map<string, number[]>()
   edges.forEach((e, i) => {
-    const group = sourceGroups.get(e.source) || []
+    // Determine exit side: compare source center X with target center X
+    const sourceNode = nodes.find(n => n.id === e.source)
+    const targetNode = nodes.find(n => n.id === e.target)
+    if (!sourceNode || !targetNode) return
+    const sourceCX = sourceNode.position.x + (sourceNode.measured?.width ?? 280) / 2
+    const targetCX = targetNode.position.x + (targetNode.measured?.width ?? 280) / 2
+    const side = targetCX >= sourceCX ? 'R' : 'L'
+    const key = `${e.source}:${side}`
+    const group = sourceExitGroups.get(key) || []
     group.push(i)
-    sourceGroups.set(e.source, group)
+    sourceExitGroups.set(key, group)
   })
-  sourceGroups.forEach((indices) => {
+  sourceExitGroups.forEach((indices) => {
     indices.forEach((edgeIdx, siblingIdx) => {
       const e = edges[edgeIdx]
       e.data = { ...e.data, edgeIndex: siblingIdx, siblingCount: indices.length }

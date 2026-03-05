@@ -123,12 +123,12 @@ function getOffsetStepPath(
   tx: number, ty: number, _tp: Position,
   edgeIndex: number, siblingCount: number,
 ): [string, number, number] {
-  const spread = 20
+  const spread = 25
   const siblingOffset = siblingCount > 1
     ? (edgeIndex - (siblingCount - 1) / 2) * spread
     : 0
   const r = 8 // corner radius
-  const minStub = 30 // minimum horizontal distance from source box before turning
+  const minStub = 35 // minimum horizontal distance from source box before turning
 
   const dx = tx - sx
   const dy = ty - sy
@@ -293,7 +293,7 @@ export default memo(function FloatingEdge({
     } else {
       // H→V→H routing: enter from left or right based on midX
       const baseMiddleX = (sourceIntersection.x + targetIntersection.x) / 2
-      const spread = 20
+      const spread = 25
       const offset = siblingCount > 1
         ? (edgeIndex - (siblingCount - 1) / 2) * spread
         : 0

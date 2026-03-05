@@ -71,12 +71,6 @@ npx sanity deploy
 
 You'll be prompted to choose a hostname (e.g. `my-org-schema-mapper`). After deploying, the app will be available to all org members in the Sanity dashboard — no more localhost needed.
 
-## Limitations
-
-- **useDatasets()** — SDK token lacks dataset list permission; falls back to "production"
-- **Inferred schema** — Only discovers types with existing documents; field types are approximate
-- **Overlapping edges** — Multiple edges to the same target may overlap (step edges are offset, bezier/straight less so)
-
 ## Tips
 
 - **Dark mode** — In dev mode, some browsers may not pick up the dashboard's dark mode in the iframe. Right-click the app and reload the iframe. This doesn't happen with deployed apps.

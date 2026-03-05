@@ -329,14 +329,6 @@ function LiveOrgOverviewInner() {
 
       // Don't re-fetch if already cached or currently loading
       if (datasetsRef.current.has(projectId) || datasetsLoadingRef.current.has(projectId)) {
-        // Still auto-select production if datasets are cached
-        const cached = datasetsRef.current.get(projectId)
-        if (cached) {
-          const production = cached.find(d => d.name === 'production')
-          if (production) {
-            dispatch({type: 'SELECT_DATASET', datasetName: 'production'})
-          }
-        }
         return
       }
 
@@ -353,16 +345,6 @@ function LiveOrgOverviewInner() {
               types: [],
             }))
           dispatch({type: 'DATASETS_LOADED', projectId, datasets})
-          // Auto-select 'production' dataset if it exists
-          const production = datasets.find(d => d.name === 'production')
-          if (production) {
-            dispatch({type: 'SELECT_DATASET', datasetName: 'production'})
-            // Trigger schema loading for production
-            const key = `${projectId}::production`
-            if (!schemasRef.current.has(key) && !schemasLoadingRef.current.has(key)) {
-              dispatch({type: 'SCHEMA_LOADING', key})
-            }
-          }
         })
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
@@ -399,6 +381,26 @@ function LiveOrgOverviewInner() {
     },
     [state.selectedProjectId],
   )
+
+  // Auto-select 'production' dataset when datasets become available for the selected project
+  useEffect(() => {
+    if (!state.selectedProjectId) return
+    if (state.selectedDatasetName) return // already have a selection
+    if (state.datasetsLoading.has(state.selectedProjectId)) return // still loading
+
+    const datasets = state.datasets.get(state.selectedProjectId)
+    if (!datasets || datasets.length === 0) return
+
+    const production = datasets.find(d => d.name === 'production')
+    const autoSelect = production ? 'production' : datasets[0].name
+    dispatch({type: 'SELECT_DATASET', datasetName: autoSelect})
+
+    // Trigger schema loading
+    const key = `${state.selectedProjectId}::${autoSelect}`
+    if (!state.schemas.has(key) && !state.schemasLoading.has(key)) {
+      dispatch({type: 'SCHEMA_LOADING', key})
+    }
+  }, [state.selectedProjectId, state.selectedDatasetName, state.datasets, state.datasetsLoading, state.schemas, state.schemasLoading])
 
   const handleSchemaDiscovered = useCallback(
     (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred') => {

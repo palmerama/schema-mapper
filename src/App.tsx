@@ -26,6 +26,10 @@ function LoadingScreen() {
 }
 
 function DarkModeProvider({ children }: { children: React.ReactNode }) {
+  // usePrefersDark() from @sanity/ui subscribes to prefers-color-scheme media query.
+  // We mirror it to a .dark class on the root so that:
+  // 1. sanity-theme.css .dark {} CSS variable overrides activate
+  // 2. useDarkMode() hook can detect it for runtime values (Background, MiniMap)
   const prefersDark = usePrefersDark()
   useEffect(() => {
     document.documentElement.classList.toggle('dark', prefersDark)

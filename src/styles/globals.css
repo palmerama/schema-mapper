@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "./sanity-theme.css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *), @media (prefers-color-scheme: dark));
 
 body {
   margin: 0;

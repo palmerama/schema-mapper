@@ -492,9 +492,17 @@ function LiveOrgOverviewInner() {
     ? state.schemaSource.get(selectedSchemaKey) || null
     : null
 
-  const selectedDatasets = state.selectedProjectId
-    ? state.datasets.get(state.selectedProjectId) || []
-    : []
+  const selectedDatasets = useMemo(() => {
+    if (!state.selectedProjectId) return []
+    const raw = state.datasets.get(state.selectedProjectId) || []
+    return raw.map((ds) => {
+      const key = `${state.selectedProjectId}::${ds.name}`
+      const cachedTypes = state.schemas.get(key) || []
+      const source = state.schemaSource.get(key)
+      const totalDocuments = cachedTypes.reduce((sum, t) => sum + t.documentCount, 0)
+      return { ...ds, types: cachedTypes, totalDocuments, schemaSource: source }
+    })
+  }, [state.selectedProjectId, state.datasets, state.schemas, state.schemaSource])
 
   const isCheckingAccess = state.phase === 'checking_access'
 

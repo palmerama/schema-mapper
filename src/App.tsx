@@ -25,6 +25,35 @@ function LoadingScreen() {
   )
 }
 
+function NotInDashboard() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-md mx-auto px-6 text-center">
+      <h1 className="text-2xl font-normal tracking-tight">Schema Mapper</h1>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        This app runs inside the <strong>Sanity Dashboard</strong>. Open your dashboard at{' '}
+        <a href="https://www.sanity.io/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400">sanity.io/manage</a>{' '}
+        and launch Schema Mapper from there.
+      </p>
+      <p className="text-xs text-muted-foreground/60">
+        The dashboard provides authentication and organization context that Schema Mapper needs to discover your projects and schemas.
+      </p>
+    </div>
+  )
+}
+
+// Detect if running inside the Sanity dashboard iframe
+function useIsInDashboard(): boolean {
+  const [isInDashboard] = useState(() => {
+    if (typeof window === 'undefined') return false
+    // Dashboard loads app in iframe with #token=… or _context param
+    const inIframe = window !== window.parent
+    const hasToken = window.location.hash.includes('token=')
+    const hasContext = window.location.search.includes('_context')
+    return inIframe || hasToken || hasContext
+  })
+  return isInDashboard
+}
+
 // Detect dark mode from multiple sources
 function useIsDark(): boolean {
   const sanityPrefersDark = usePrefersDark()
@@ -46,6 +75,7 @@ function useIsDark(): boolean {
 }
 
 export default function App() {
+  const isInDashboard = useIsInDashboard()
   const isDark = useIsDark()
   const scheme = isDark ? 'dark' : 'light'
 
@@ -54,10 +84,19 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
+  if (!isInDashboard) {
+    return (
+      <ThemeProvider theme={theme} scheme={scheme}>
+        <Card scheme={scheme} style={{minHeight: '100vh'}}>
+          <NotInDashboard />
+        </Card>
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider theme={theme} scheme={scheme}>
       <Card scheme={scheme} style={{minHeight: '100vh'}}>
-
         <SanityApp config={config} fallback={<LoadingScreen />}>
           <Suspense fallback={<LoadingScreen />}>
             <HashRouter>

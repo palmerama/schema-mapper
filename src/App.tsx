@@ -28,7 +28,7 @@ function LoadingScreen() {
 
 function NotInDashboard() {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-md mx-auto px-6 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 h-screen max-w-lg mx-auto px-6 text-center">
       <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" />Schema Mapper</h1>
       <p className="text-sm text-muted-foreground leading-relaxed">
         This app runs inside the <strong>Sanity Dashboard</strong>. Open your dashboard at{' '}

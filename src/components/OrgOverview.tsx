@@ -36,7 +36,7 @@ function VersionBadge() {
     <Box padding={2}>
       <Text size={1} muted>
         {hasUpdate
-          ? `v${latest} available — Ask your agent to "update schema mapper"`
+          ? `v${latest} available. Ask your agent to "update schema mapper"`
           : 'Up to date!'}
       </Text>
     </Box>

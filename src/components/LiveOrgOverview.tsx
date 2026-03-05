@@ -1,8 +1,22 @@
-import React, {useEffect, useCallback, useRef, useReducer, useState, useMemo, Suspense} from 'react'
-import {useProjects, useDatasets, ResourceProvider, useDashboardOrganizationId, useClient} from '@sanity/sdk-react'
+import React, {
+  useEffect,
+  useCallback,
+  useRef,
+  useReducer,
+  useState,
+  useMemo,
+  Suspense,
+} from 'react'
+import {
+  useProjects,
+  ResourceProvider,
+  useDashboardOrganizationId,
+  useClient,
+} from '@sanity/sdk-react'
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
-import type {ProjectInfo, DiscoveredType} from '../types'
+import useProjectAccess from '../hooks/useProjectAccess'
+import type {ProjectInfo, DatasetInfo, DiscoveredType} from '../types'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary — catches errors and reports them via onError callback
@@ -34,79 +48,114 @@ class ErrorBoundary extends React.Component<
 }
 
 // ---------------------------------------------------------------------------
-// Reducer — single source of truth for all discovery state
+// State & Reducer — progressive lazy-loading state machine
 // ---------------------------------------------------------------------------
 
-type DatasetState = {
-  deployedTypes: DiscoveredType[] | null
-  inferredTypes: DiscoveredType[] | null
-  schemaSource: 'deployed' | 'inferred'
-  hasDeployedSchema: boolean
-  status: 'loading' | 'complete' | 'error'
-  error?: Error
-}
+type LoadingPhase = 'checking_access' | 'ready'
 
-type State = {
-  datasets: Map<string, string[]>           // projectId → dataset names
-  schemas: Map<string, DatasetState>        // "projectId::dataset" → state
-  completedPairs: Set<string>               // "projectId::dataset" keys that finished
-  failedProjects: Set<string>
+interface State {
+  phase: LoadingPhase
+  // Access results per project
+  accessResults: Map<string, {hasAccess: boolean | null; isChecking: boolean}>
+  // Datasets per project (loaded on demand when project tab clicked)
+  datasets: Map<string, DatasetInfo[]>
+  datasetsLoading: Set<string> // project IDs currently loading datasets
+  // Schemas per "projectId::dataset" (loaded on demand when dataset tab clicked)
+  schemas: Map<string, DiscoveredType[]>
+  schemasLoading: Set<string> // "projectId::dataset" keys currently loading
+  schemaSource: Map<string, 'deployed' | 'inferred'>
+  // Errors keyed by projectId or "projectId::dataset"
+  errors: Map<string, string>
+  // Selection
+  selectedProjectId: string | null
+  selectedDatasetName: string | null
 }
 
 type Action =
-  | { type: 'DATASETS_DISCOVERED'; projectId: string; datasets: string[] }
-  | { type: 'SCHEMA_DISCOVERED'; projectId: string; dataset: string; types: DiscoveredType[]; schemaSource: 'deployed' | 'inferred'; hasDeployedSchema: boolean; deployedTypes: DiscoveredType[] | null; inferredTypes: DiscoveredType[] | null }
-  | { type: 'DISCOVERY_ERROR'; projectId: string }
-  | { type: 'DATASET_ERROR'; projectId: string }
+  | {type: 'ACCESS_CHECKED'; projectId: string; hasAccess: boolean}
+  | {type: 'DATASETS_LOADING'; projectId: string}
+  | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
+  | {type: 'SCHEMA_LOADING'; key: string}
+  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'}
+  | {type: 'ERROR'; key: string; error: string}
+  | {type: 'SELECT_PROJECT'; projectId: string}
+  | {type: 'SELECT_DATASET'; datasetName: string}
+  | {type: 'PHASE_READY'}
 
 const initialState: State = {
+  phase: 'checking_access',
+  accessResults: new Map(),
   datasets: new Map(),
+  datasetsLoading: new Set(),
   schemas: new Map(),
-  completedPairs: new Set(),
-  failedProjects: new Set(),
+  schemasLoading: new Set(),
+  schemaSource: new Map(),
+  errors: new Map(),
+  selectedProjectId: null,
+  selectedDatasetName: null,
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'DATASETS_DISCOVERED': {
+    case 'ACCESS_CHECKED': {
+      const next = new Map(state.accessResults)
+      next.set(action.projectId, {hasAccess: action.hasAccess, isChecking: false})
+      return {...state, accessResults: next}
+    }
+
+    case 'PHASE_READY':
+      return {...state, phase: 'ready'}
+
+    case 'DATASETS_LOADING': {
+      const next = new Set(state.datasetsLoading)
+      next.add(action.projectId)
+      return {...state, datasetsLoading: next}
+    }
+
+    case 'DATASETS_LOADED': {
       const nextDatasets = new Map(state.datasets)
       nextDatasets.set(action.projectId, action.datasets)
-      return { ...state, datasets: nextDatasets }
+      const nextLoading = new Set(state.datasetsLoading)
+      nextLoading.delete(action.projectId)
+      return {...state, datasets: nextDatasets, datasetsLoading: nextLoading}
     }
 
-    case 'SCHEMA_DISCOVERED': {
-      const key = `${action.projectId}::${action.dataset}`
+    case 'SCHEMA_LOADING': {
+      const next = new Set(state.schemasLoading)
+      next.add(action.key)
+      return {...state, schemasLoading: next}
+    }
+
+    case 'SCHEMA_LOADED': {
       const nextSchemas = new Map(state.schemas)
-      nextSchemas.set(key, {
-        deployedTypes: action.deployedTypes,
-        inferredTypes: action.inferredTypes,
-        schemaSource: action.schemaSource,
-        hasDeployedSchema: action.hasDeployedSchema,
-        status: 'complete',
-      })
-      const nextCompleted = new Set(state.completedPairs)
-      nextCompleted.add(key)
-      return { ...state, schemas: nextSchemas, completedPairs: nextCompleted }
+      nextSchemas.set(action.key, action.types)
+      const nextSource = new Map(state.schemaSource)
+      nextSource.set(action.key, action.source)
+      const nextLoading = new Set(state.schemasLoading)
+      nextLoading.delete(action.key)
+      return {...state, schemas: nextSchemas, schemaSource: nextSource, schemasLoading: nextLoading}
     }
 
-    case 'DISCOVERY_ERROR': {
-      const nextFailed = new Set(state.failedProjects)
-      nextFailed.add(action.projectId)
-      // Mark all known datasets for this project as completed
-      const nextCompleted = new Set(state.completedPairs)
-      const dsNames = state.datasets.get(action.projectId) || []
-      dsNames.forEach(ds => nextCompleted.add(`${action.projectId}::${ds}`))
-      return { ...state, failedProjects: nextFailed, completedPairs: nextCompleted }
+    case 'ERROR': {
+      const next = new Map(state.errors)
+      next.set(action.key, action.error)
+      // Also clear any loading states for this key
+      const nextDL = new Set(state.datasetsLoading)
+      nextDL.delete(action.key)
+      const nextSL = new Set(state.schemasLoading)
+      nextSL.delete(action.key)
+      return {...state, errors: next, datasetsLoading: nextDL, schemasLoading: nextSL}
     }
 
-    case 'DATASET_ERROR': {
-      // Fall back to 'production' for this project
-      const nextDatasets = new Map(state.datasets)
-      if (!nextDatasets.has(action.projectId)) {
-        nextDatasets.set(action.projectId, ['production'])
+    case 'SELECT_PROJECT':
+      return {
+        ...state,
+        selectedProjectId: action.projectId,
+        selectedDatasetName: null, // reset dataset selection when project changes
       }
-      return { ...state, datasets: nextDatasets }
-    }
+
+    case 'SELECT_DATASET':
+      return {...state, selectedDatasetName: action.datasetName}
 
     default:
       return state
@@ -114,10 +163,38 @@ function reducer(state: State, action: Action): State {
 }
 
 // ---------------------------------------------------------------------------
-// DatasetDiscovery — discovers schema for a single dataset, reports up
+// ProjectAccessChecker — renders useProjectAccess for a single project,
+// reports result up via callback. Runs inside a ResourceProvider.
 // ---------------------------------------------------------------------------
 
-function DatasetDiscovery({
+function ProjectAccessChecker({
+  projectId,
+  client,
+  onResult,
+}: {
+  projectId: string
+  client: any
+  onResult: (projectId: string, hasAccess: boolean) => void
+}) {
+  const {hasAccess, isChecking} = useProjectAccess(projectId, client)
+  const reportedRef = useRef(false)
+
+  useEffect(() => {
+    if (!isChecking && hasAccess !== null && !reportedRef.current) {
+      reportedRef.current = true
+      onResult(projectId, hasAccess)
+    }
+  }, [isChecking, hasAccess, projectId, onResult])
+
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// ActiveSchemaDiscovery — renders useSchemaDiscovery for the currently
+// selected project+dataset. Only ONE of these exists at a time.
+// ---------------------------------------------------------------------------
+
+function ActiveSchemaDiscovery({
   projectId,
   datasetName,
   onDiscovered,
@@ -125,120 +202,39 @@ function DatasetDiscovery({
 }: {
   projectId: string
   datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => void
-  onError: (projectId: string) => void
+  onDiscovered: (
+    key: string,
+    types: DiscoveredType[],
+    source: 'deployed' | 'inferred',
+  ) => void
+  onError: (key: string, error: string) => void
 }) {
-  const {types, isLoading, error, schemaSource, hasDeployedSchema, deployedTypes, inferredTypes} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource} = useSchemaDiscovery()
   const reportedRef = useRef(false)
-  const reportedInferredRef = useRef(false)
+  const key = `${projectId}::${datasetName}`
 
-  // Reset flags when projectId or datasetName changes
+  // Reset when key changes
   useEffect(() => {
     reportedRef.current = false
-    reportedInferredRef.current = false
-  }, [projectId, datasetName])
+  }, [key])
 
-  // Report initial results (deployed or inferred)
   useEffect(() => {
     if (!isLoading && !reportedRef.current) {
       reportedRef.current = true
       if (error) {
-        console.warn(`[Schema Mapper] Schema error for ${projectId}/${datasetName}:`, error)
-        onError(projectId)
+        onError(key, error.message || 'Schema discovery failed')
       } else {
-        onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema, deployedTypes, inferredTypes)
+        onDiscovered(key, types, schemaSource ?? 'inferred')
       }
     }
-  }, [isLoading, types, error, schemaSource, projectId, datasetName, onDiscovered, onError])
-
-  // Report again when inferred types arrive (for toggle comparison)
-  useEffect(() => {
-    if (reportedRef.current && !reportedInferredRef.current && inferredTypes && inferredTypes.length > 0) {
-      reportedInferredRef.current = true
-      onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema, deployedTypes, inferredTypes)
-    }
-  }, [inferredTypes, reportedRef.current, projectId, datasetName, types, schemaSource, hasDeployedSchema, deployedTypes, onDiscovered])
+  }, [isLoading, types, error, schemaSource, key, onDiscovered, onError])
 
   return null
 }
 
 // ---------------------------------------------------------------------------
-// DatasetDiscoveryWrapper — wraps DatasetDiscovery in a ResourceProvider
-// ---------------------------------------------------------------------------
-
-function DatasetDiscoveryWrapper({
-  projectId,
-  datasetName,
-  onDiscovered,
-  onError,
-}: {
-  projectId: string
-  datasetName: string
-  onDiscovered: (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => void
-  onError: (projectId: string) => void
-}) {
-  return (
-    <Suspense fallback={null}>
-      <ResourceProvider projectId={projectId} dataset={datasetName} fallback={null}>
-        <DatasetDiscovery
-          projectId={projectId}
-          datasetName={datasetName}
-          onDiscovered={onDiscovered}
-          onError={onError}
-        />
-      </ResourceProvider>
-    </Suspense>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// ProjectDatasets — fetches real datasets for a project via useDatasets()
-// ---------------------------------------------------------------------------
-
-function ProjectDatasets({
-  projectId,
-  onDatasets,
-  onError,
-}: {
-  projectId: string
-  onDatasets: (projectId: string, datasetNames: string[]) => void
-  onError: (projectId: string, error: Error) => void
-}) {
-  const datasets = useDatasets()
-  const reportedRef = useRef(false)
-
-  useEffect(() => {
-    if (datasets && !reportedRef.current) {
-      reportedRef.current = true
-      const names = (datasets as any[]).map((d: any) => d.name || d).filter((n: string) => !n.endsWith('-comments'))
-      onDatasets(projectId, names)
-    }
-  }, [datasets, projectId, onDatasets])
-
-  // If useDatasets throws, ErrorBoundary will catch it
-  return null
-}
-
-function ProjectDatasetsWrapper({
-  projectId,
-  onDatasets,
-  onError,
-}: {
-  projectId: string
-  onDatasets: (projectId: string, datasetNames: string[]) => void
-  onError: (projectId: string, error: Error) => void
-}) {
-  return (
-    <Suspense fallback={null}>
-      <ResourceProvider projectId={projectId} fallback={null}>
-        <ProjectDatasets projectId={projectId} onDatasets={onDatasets} onError={onError} />
-      </ResourceProvider>
-    </Suspense>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// LiveOrgOverviewInner — uses useProjects() (Suspense), orchestrates loading
+// LiveOrgOverviewInner — uses useProjects() (Suspense), orchestrates
+// progressive lazy loading across 3 phases
 // ---------------------------------------------------------------------------
 
 function LiveOrgOverviewInner() {
@@ -250,187 +246,304 @@ function LiveOrgOverviewInner() {
   // Fetch org name from management API
   useEffect(() => {
     if (!orgId) return
-    client.request({uri: '/organizations'})
+    client
+      .request({uri: '/organizations'})
       .then((orgs: {id: string; name: string}[]) => {
-        const org = orgs.find(o => o.id === orgId)
+        const org = orgs.find((o) => o.id === orgId)
         if (org) setOrgName(org.name)
       })
-      .catch(() => {/* org name is optional */})
+      .catch(() => {
+        /* org name is optional */
+      })
   }, [orgId, client])
 
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const handleDatasetsDiscovered = useCallback((projectId: string, datasetNames: string[]) => {
-    dispatch({ type: 'DATASETS_DISCOVERED', projectId, datasets: datasetNames })
-  }, [])
+  // Track which project IDs we've started access checks for (to avoid re-triggering)
+  const accessCheckStartedRef = useRef(new Set<string>())
 
-  const handleDatasetError = useCallback((projectId: string, _error: Error) => {
-    console.error('[LiveOrgOverview] Dataset error for', projectId, ':', _error)
-    dispatch({ type: 'DATASET_ERROR', projectId })
-  }, [])
-
-  const handleSchemaDiscovered = useCallback(
-    (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => {
-      dispatch({
-        type: 'SCHEMA_DISCOVERED',
-        projectId,
-        dataset: datasetName,
-        types,
-        schemaSource,
-        hasDeployedSchema,
-        deployedTypes,
-        inferredTypes,
-      })
-    },
-    []
-  )
-
-  // Called when useSchemaDiscovery returns an error (e.g. user not a project member)
-  const handleDiscoveryError = useCallback(
-    (projectId: string) => {
-      console.warn(`[Schema Mapper] Discovery failed for project ${projectId}`)
-      dispatch({ type: 'DISCOVERY_ERROR', projectId })
-    },
-    []
-  )
-
-  // Called when ErrorBoundary catches a thrown error
-  const handleBoundaryError = useCallback(
-    (projectId: string) => (error: Error) => {
-      console.warn(`[Schema Mapper] Boundary error for project ${projectId}:`, error.message)
-      dispatch({ type: 'DISCOVERY_ERROR', projectId })
-    },
-    []
-  )
-
-  // Count total expected dataset pairs vs completed
-  const totalExpectedPairs = (projects || []).reduce((sum: number, p: any) => {
-    const dsNames = state.datasets.get(p.id)
-    return sum + (dsNames ? dsNames.length : 1) // 1 = still waiting for dataset list
-  }, 0)
-  // Show UI as soon as any project has completed (per-project spinners handle the rest)
-  const hasAnyCompleted = state.completedPairs.size > 0 || state.failedProjects.size > 0
-  const isLoading = !hasAnyCompleted && state.completedPairs.size < totalExpectedPairs
+  // Refs for state Maps/Sets used in callbacks (avoid stale closures)
+  const datasetsRef = useRef(state.datasets)
+  datasetsRef.current = state.datasets
+  const datasetsLoadingRef = useRef(state.datasetsLoading)
+  datasetsLoadingRef.current = state.datasetsLoading
+  const schemasRef = useRef(state.schemas)
+  schemasRef.current = state.schemas
+  const schemasLoadingRef = useRef(state.schemasLoading)
+  schemasLoadingRef.current = state.schemasLoading
 
   // -----------------------------------------------------------------------
-  // Batch throttling: only discover BATCH_SIZE projects at a time
+  // Phase 1: Access checks — mark phase as ready once all checks complete
   // -----------------------------------------------------------------------
-  const BATCH_SIZE = 3
 
-  const { activeSet, completedProjectIds } = useMemo(() => {
-    const projectIds = (projects || []).map((p: any) => p.id)
-    const completedOrFailed = new Set([...state.failedProjects])
-    const completed = new Set<string>()
-    // A project is "done" if all its datasets have completed
-    for (const pid of projectIds) {
-      const dsNames = state.datasets.get(pid)
-      if (dsNames && dsNames.every(ds => state.completedPairs.has(`${pid}::${ds}`))) {
-        completedOrFailed.add(pid)
-        if (!state.failedProjects.has(pid)) {
-          completed.add(pid)
-        }
-      }
-    }
+  const handleAccessResult = useCallback(
+    (projectId: string, hasAccess: boolean) => {
+      dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess})
+    },
+    [],
+  )
 
-    // Build the active batch: first BATCH_SIZE projects that aren't completed/failed
-    const activeProjects = projectIds.filter(id => !completedOrFailed.has(id)).slice(0, BATCH_SIZE)
-    const set = new Set(activeProjects)
+  // Transition to 'ready' phase once all projects have been checked
+  useEffect(() => {
+    if (state.phase !== 'checking_access') return
+    if (!projects || projects.length === 0) return
 
-    const completedCount = completed.size
-    const failedCount = state.failedProjects.size
-    const queuedCount = projectIds.length - completedCount - failedCount - set.size
-    console.log(
-      `[Schema Mapper] Batch: processing ${set.size}, completed ${completedCount}, failed ${failedCount}, queued ${queuedCount}`
-    )
-
-    return { activeSet: set, completedProjectIds: completed }
-  }, [projects, state.datasets, state.completedPairs, state.failedProjects])
-
-  // Build ProjectInfo[] from reducer state (derived, not stored)
-  const projectInfos: ProjectInfo[] = (projects || []).map((p: any) => {
-    const dsNames = state.datasets.get(p.id) || []
-    const datasets = dsNames.map(datasetName => {
-      const key = `${p.id}::${datasetName}`
-      const schemaState = state.schemas.get(key)
-      const types = schemaState
-        ? (schemaState.schemaSource === 'deployed' && schemaState.deployedTypes
-            ? schemaState.deployedTypes
-            : schemaState.inferredTypes || [])
-        : []
-      const totalDocuments = types.reduce((sum: number, t: DiscoveredType) => sum + t.documentCount, 0)
-      return {
-        name: datasetName,
-        aclMode: 'public' as const,
-        totalDocuments,
-        types,
-        schemaSource: schemaState?.schemaSource,
-        hasDeployedSchema: schemaState?.hasDeployedSchema || false,
-        deployedTypes: schemaState?.deployedTypes || null,
-        inferredTypes: schemaState?.inferredTypes || null,
-      }
+    const allChecked = projects.every((p: any) => {
+      const result = state.accessResults.get(p.id)
+      return result && !result.isChecking
     })
 
-    // Determine per-project loading state
-    const isProjectDone = completedProjectIds.has(p.id) || state.failedProjects.has(p.id)
-    const isProjectLoading = !isProjectDone
-
-    return {
-      id: p.id,
-      displayName: p.displayName || p.id,
-      studioHost: p.studioHost || undefined,
-      hasAccess: !state.failedProjects.has(p.id),
-      isProjectLoading,
-      datasets,
+    if (allChecked) {
+      dispatch({type: 'PHASE_READY'})
     }
-  })
+  }, [state.phase, state.accessResults, projects])
 
-  // Sort: accessible projects alphabetically first, then inaccessible alphabetically
-  projectInfos.sort((a, b) => {
-    const aAccess = a.hasAccess !== false ? 0 : 1
-    const bAccess = b.hasAccess !== false ? 0 : 1
-    if (aAccess !== bAccess) return aAccess - bAccess
-    return a.displayName.localeCompare(b.displayName)
-  })
+  // -----------------------------------------------------------------------
+  // Phase 2: Dataset fetching — triggered on project tab click
+  // -----------------------------------------------------------------------
+
+  const handleProjectSelect = useCallback(
+    (projectId: string) => {
+      dispatch({type: 'SELECT_PROJECT', projectId})
+
+      // Don't re-fetch if already cached or currently loading
+      if (datasetsRef.current.has(projectId) || datasetsLoadingRef.current.has(projectId)) {
+        return
+      }
+
+      dispatch({type: 'DATASETS_LOADING', projectId})
+
+      client
+        .request<{name: string; aclMode: string}[]>({
+          uri: `/projects/${projectId}/datasets`,
+        })
+        .then((rawDatasets) => {
+          const datasets: DatasetInfo[] = rawDatasets
+            .filter((d) => !d.name.endsWith('-comments'))
+            .map((d) => ({
+              name: d.name,
+              aclMode: (d.aclMode as 'public' | 'private') || 'public',
+              totalDocuments: 0,
+              types: [],
+            }))
+          dispatch({type: 'DATASETS_LOADED', projectId, datasets})
+        })
+        .catch((err) => {
+          console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
+          // Fallback to production dataset
+          dispatch({
+            type: 'DATASETS_LOADED',
+            projectId,
+            datasets: [{name: 'production', aclMode: 'public', totalDocuments: 0, types: []}],
+          })
+          dispatch({type: 'ERROR', key: projectId, error: err.message || 'Failed to fetch datasets'})
+        })
+    },
+    [client],
+  )
+
+  // -----------------------------------------------------------------------
+  // Phase 3: Schema discovery — triggered on dataset tab click
+  // Rendered as a component (uses hooks), only for the active selection
+  // -----------------------------------------------------------------------
+
+  const handleDatasetSelect = useCallback(
+    (datasetName: string) => {
+      dispatch({type: 'SELECT_DATASET', datasetName})
+
+      // selectedProjectId comes from the reducer, but we need the latest value
+      // The dispatch of SELECT_DATASET will update it, but we need the current one for the schema key
+      if (!state.selectedProjectId) return
+      const key = `${state.selectedProjectId}::${datasetName}`
+
+      // Mark as loading if not already cached
+      if (!schemasRef.current.has(key) && !schemasLoadingRef.current.has(key)) {
+        dispatch({type: 'SCHEMA_LOADING', key})
+      }
+    },
+    [state.selectedProjectId],
+  )
+
+  const handleSchemaDiscovered = useCallback(
+    (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred') => {
+      dispatch({type: 'SCHEMA_LOADED', key, types, source})
+    },
+    [],
+  )
+
+  const handleSchemaError = useCallback((key: string, error: string) => {
+    dispatch({type: 'ERROR', key, error})
+  }, [])
+
+  // -----------------------------------------------------------------------
+  // Derive props for OrgOverview
+  // -----------------------------------------------------------------------
+
+  const {accessibleProjects, lockedProjects} = useMemo(() => {
+    const accessible: ProjectInfo[] = []
+    const locked: ProjectInfo[] = []
+
+    for (const p of projects || []) {
+      const accessResult = state.accessResults.get(p.id)
+      const hasAccess = accessResult?.hasAccess
+      const isChecking = accessResult?.isChecking ?? true
+
+      // Get cached datasets for this project (may be empty if not yet fetched)
+      const cachedDatasets = state.datasets.get(p.id) || []
+
+      // Enrich datasets with cached schema data
+      const enrichedDatasets: DatasetInfo[] = cachedDatasets.map((ds) => {
+        const key = `${p.id}::${ds.name}`
+        const cachedTypes = state.schemas.get(key) || []
+        const source = state.schemaSource.get(key)
+        const totalDocuments = cachedTypes.reduce((sum, t) => sum + t.documentCount, 0)
+        return {
+          ...ds,
+          types: cachedTypes,
+          totalDocuments,
+          schemaSource: source,
+        }
+      })
+
+      const projectInfo: ProjectInfo = {
+        id: p.id,
+        displayName: (p as any).displayName || p.id,
+        studioHost: (p as any).studioHost || undefined,
+        hasAccess: hasAccess ?? undefined,
+        isProjectLoading: isChecking || state.datasetsLoading.has(p.id),
+        datasets: enrichedDatasets,
+      }
+
+      if (hasAccess === false) {
+        locked.push(projectInfo)
+      } else {
+        // hasAccess === true OR still checking (null) — show in accessible
+        accessible.push(projectInfo)
+      }
+    }
+
+    // Sort alphabetically
+    accessible.sort((a, b) => a.displayName.localeCompare(b.displayName))
+    locked.sort((a, b) => a.displayName.localeCompare(b.displayName))
+
+    return {accessibleProjects: accessible, lockedProjects: locked}
+  }, [projects, state.accessResults, state.datasets, state.schemas, state.schemaSource, state.datasetsLoading])
+
+  // Derive loading states for the currently selected project/dataset
+  const isDatasetsLoading = state.selectedProjectId
+    ? state.datasetsLoading.has(state.selectedProjectId)
+    : false
+
+  const selectedSchemaKey =
+    state.selectedProjectId && state.selectedDatasetName
+      ? `${state.selectedProjectId}::${state.selectedDatasetName}`
+      : null
+
+  const isSchemasLoading = selectedSchemaKey
+    ? state.schemasLoading.has(selectedSchemaKey)
+    : false
+
+  const selectedTypes = selectedSchemaKey
+    ? state.schemas.get(selectedSchemaKey) || []
+    : []
+
+  const selectedSchemaSource = selectedSchemaKey
+    ? state.schemaSource.get(selectedSchemaKey) || null
+    : null
+
+  const selectedDatasets = state.selectedProjectId
+    ? state.datasets.get(state.selectedProjectId) || []
+    : []
+
+  const isCheckingAccess = state.phase === 'checking_access'
+
+  // Determine if we need to render schema discovery for the active selection
+  const needsSchemaDiscovery =
+    state.selectedProjectId &&
+    state.selectedDatasetName &&
+    selectedSchemaKey &&
+    !state.schemas.has(selectedSchemaKey) &&
+    !state.errors.has(selectedSchemaKey)
 
   return (
     <>
-      {/* Hidden: discover datasets and schemas (renders no visible UI) */}
-      <div style={{ display: 'none' }}>
+      {/* Phase 1: Hidden access checkers — one per project, run in parallel */}
+      <div style={{display: 'none'}}>
         {(projects || []).map((p: any) => {
-          if (!activeSet.has(p.id)) return null
+          // Skip if already checked
+          if (state.accessResults.has(p.id) && !state.accessResults.get(p.id)!.isChecking) {
+            return null
+          }
           return (
-            <ErrorBoundary key={`ds-${p.id}`} fallback={null} onError={() => handleDatasetError(p.id, new Error('Dataset discovery failed'))}>
+            <ErrorBoundary
+              key={`access-${p.id}`}
+              fallback={null}
+              onError={() => {
+                // If the access check throws, treat as no access
+                dispatch({type: 'ACCESS_CHECKED', projectId: p.id, hasAccess: false})
+              }}
+            >
               <Suspense fallback={null}>
-                <ProjectDatasetsWrapper
-                  projectId={p.id}
-                  onDatasets={handleDatasetsDiscovered}
-                  onError={handleDatasetError}
-                />
+                <ResourceProvider projectId={p.id} fallback={null}>
+                  <ProjectAccessChecker projectId={p.id} client={client} onResult={handleAccessResult} />
+                </ResourceProvider>
               </Suspense>
             </ErrorBoundary>
           )
         })}
-        {(projects || []).map((p: any) => {
-          if (!activeSet.has(p.id)) return null
-          const dsNames = state.datasets.get(p.id)
-          if (!dsNames) return null // Wait until real datasets are discovered
-          return dsNames.map(dsName => (
-            <ErrorBoundary key={`${p.id}-${dsName}`} fallback={null} onError={handleBoundaryError(p.id)}>
-              <Suspense fallback={null}>
-                <DatasetDiscoveryWrapper
-                  projectId={p.id}
-                  datasetName={dsName}
-                  onDiscovered={handleSchemaDiscovered}
-                  onError={handleDiscoveryError}
-                />
-              </Suspense>
-            </ErrorBoundary>
-          ))
-        })}
       </div>
 
+      {/* Phase 3: Schema discovery — only for the currently selected project+dataset */}
+      {needsSchemaDiscovery && (
+        <div style={{display: 'none'}}>
+          <ErrorBoundary
+            key={`schema-${selectedSchemaKey}`}
+            fallback={null}
+            onError={(error) => {
+              if (selectedSchemaKey) {
+                dispatch({
+                  type: 'ERROR',
+                  key: selectedSchemaKey,
+                  error: error.message || 'Schema discovery failed',
+                })
+              }
+            }}
+          >
+            <Suspense fallback={null}>
+              <ResourceProvider
+                projectId={state.selectedProjectId!}
+                dataset={state.selectedDatasetName!}
+                fallback={null}
+              >
+                <ActiveSchemaDiscovery
+                  projectId={state.selectedProjectId!}
+                  datasetName={state.selectedDatasetName!}
+                  onDiscovered={handleSchemaDiscovered}
+                  onError={handleSchemaError}
+                />
+              </ResourceProvider>
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      )}
+
       {/* Render the visual component with progressive data */}
-      <OrgOverview projects={projectInfos} isLoading={isLoading} orgId={orgId || undefined} orgName={orgName} />
+      <OrgOverview
+        orgId={orgId || ''}
+        orgName={orgName || ''}
+        projects={accessibleProjects}
+        lockedProjects={lockedProjects}
+        selectedProjectId={state.selectedProjectId}
+        selectedDatasetName={state.selectedDatasetName}
+        datasets={selectedDatasets}
+        types={selectedTypes}
+        schemaSource={selectedSchemaSource}
+        isCheckingAccess={isCheckingAccess}
+        isDatasetsLoading={isDatasetsLoading}
+        isSchemasLoading={isSchemasLoading}
+        onProjectSelect={handleProjectSelect}
+        onDatasetSelect={handleDatasetSelect}
+      />
     </>
   )
 }
@@ -453,7 +566,20 @@ export function LiveOrgOverview() {
     >
       <Suspense
         fallback={
-          <OrgOverview projects={[]} isLoading />
+          <OrgOverview
+            projects={[]}
+            lockedProjects={[]}
+            isCheckingAccess
+            isDatasetsLoading={false}
+            isSchemasLoading={false}
+            datasets={[]}
+            types={[]}
+            schemaSource={null}
+            selectedProjectId={null}
+            selectedDatasetName={null}
+            onProjectSelect={() => {}}
+            onDatasetSelect={() => {}}
+          />
         }
       >
         <LiveOrgOverviewInner />

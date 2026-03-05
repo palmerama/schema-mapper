@@ -247,7 +247,7 @@ function LiveOrgOverviewInner() {
   useEffect(() => {
     if (!orgId) return
     client
-      .request({uri: '/organizations'})
+      .request({url: 'https://api.sanity.io/v2024-01-01/organizations'})
       .then((orgs: {id: string; name: string}[]) => {
         const org = orgs.find((o) => o.id === orgId)
         if (org) setOrgName(org.name)
@@ -315,7 +315,7 @@ function LiveOrgOverviewInner() {
 
       client
         .request<{name: string; aclMode: string}[]>({
-          uri: `/projects/${projectId}/datasets`,
+          url: `https://api.sanity.io/v2024-01-01/projects/${projectId}/datasets`,
         })
         .then((rawDatasets) => {
           const datasets: DatasetInfo[] = rawDatasets

@@ -59,7 +59,7 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
     async function checkAccess() {
       try {
         await clientRef.current.request({
-          uri: `/projects/${projectId}`,
+          url: `https://api.sanity.io/v2024-01-01/projects/${projectId}`,
           signal: abortController.signal,
         })
 

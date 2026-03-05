@@ -557,7 +557,7 @@ function GraphControls({
   const edgeStyles: EdgeStyle[] = ['bezier', 'step', 'straight']
 
   return (
-    <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
+    <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-2.5">
       <div className="flex gap-1">
         {layouts.map((l) => (
           <Tab

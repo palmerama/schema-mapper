@@ -505,10 +505,29 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
               </Text>
             </View>
           </View>
-          {/* Stats row */}
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+          {/* Stats row with schema source badge */}
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 3, alignItems: 'center' }}>
             <Text style={{ fontSize: 5.5, fontFamily: 'Helvetica', color: '#aaaaaa' }}>
-              {context.totalDocuments.toLocaleString()} {context.totalDocuments === 1 ? 'document' : 'documents'}  ·  {context.typeCount} {context.typeCount === 1 ? 'type' : 'types'}  ·  {context.schemaSource === 'deployed' ? 'deployed schema found' : context.schemaSource === 'inferred' ? 'schema inferred from documents' : ''}  ·  {now}
+              {context.totalDocuments.toLocaleString()} {context.totalDocuments === 1 ? 'document' : 'documents'}  ·  {context.typeCount} {context.typeCount === 1 ? 'type' : 'types'}
+            </Text>
+            {context.schemaSource && (
+              <View style={{
+                backgroundColor: context.schemaSource === 'deployed' ? '#dbeafe' : '#fef3c7',
+                borderRadius: 6,
+                paddingHorizontal: 5,
+                paddingVertical: 1.5,
+              }}>
+                <Text style={{
+                  fontSize: 5,
+                  fontFamily: 'Helvetica-Bold',
+                  color: context.schemaSource === 'deployed' ? '#1e40af' : '#92400e',
+                }}>
+                  {context.schemaSource === 'deployed' ? '✓ deployed schema found' : '⚠ schema inferred from documents'}
+                </Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 5.5, fontFamily: 'Helvetica', color: '#aaaaaa' }}>
+              {now}
             </Text>
           </View>
         </View>

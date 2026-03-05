@@ -270,8 +270,6 @@ function LiveOrgOverviewInner() {
 
   const handleSchemaDiscovered = useCallback(
     (projectId: string, datasetName: string, types: DiscoveredType[], schemaSource: 'deployed' | 'inferred', hasDeployedSchema: boolean, deployedTypes: DiscoveredType[] | null, inferredTypes: DiscoveredType[] | null) => {
-        'deployed:', deployedTypes?.length ?? 'null', 
-        'inferred:', inferredTypes?.length ?? 'null')
       dispatch({
         type: 'SCHEMA_DISCOVERED',
         projectId,

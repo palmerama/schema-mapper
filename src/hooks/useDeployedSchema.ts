@@ -319,14 +319,6 @@ function parseStudioSchema(
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
     const fields: DiscoveredField[] = filtered.map((f: any) => mapStudioField(f, allTypeNames, documentTypeNames))
 
-      '[Schema Mapper] Studio parser:',
-      docType.name,
-      'raw fields:', rawFields.length,
-      'after filter:', filtered.length,
-      'names:', filtered.map((f: any) => f.name).join(', '),
-      'inline objects:', fields.filter(f => f.isInlineObject).map(f => `${f.name}→${f.referenceTo}`).join(', ') || 'none',
-    )
-
     return {
       name: docType.name,
       fields,

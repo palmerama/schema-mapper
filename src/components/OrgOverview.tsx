@@ -180,11 +180,11 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
         {!isLoading && (
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
-            <span>{formatNumber(totalProjects)} projects</span>
+            <span>{formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}</span>
             <span>·</span>
-            <span>{formatNumber(totalDatasets)} datasets</span>
+            <span>{formatNumber(totalDatasets)} {totalDatasets === 1 ? 'dataset' : 'datasets'}</span>
             <span>·</span>
-            <span>{formatNumber(totalTypes)} types</span>
+            <span>{formatNumber(totalTypes)} {totalTypes === 1 ? 'type' : 'types'}</span>
             <span>·</span>
             <span>{formatNumber(totalDocuments)} documents</span>
             <span>·</span>
@@ -282,7 +282,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                 </Badge>
               )}
               <span className="text-muted-foreground">·</span>
-              <span>{formatNumber(selectedDataset.totalDocuments)} documents</span>
+              <span>{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
               <span className="text-muted-foreground">·</span>
               <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
               {selectedProject && (

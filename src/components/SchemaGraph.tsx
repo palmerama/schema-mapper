@@ -420,7 +420,7 @@ async function getElkLayout(spacing: number,
 // Build initial nodes & edges from discovered types
 // ---------------------------------------------------------------------------
 
-function buildNodesAndEdges(types: DiscoveredType[]): {
+function buildNodesAndEdges(types: DiscoveredType[], edgeStyle: EdgeStyle = 'bezier'): {
   nodes: SchemaNode_RF[]
   edges: SchemaEdge[]
 } {
@@ -485,7 +485,7 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
             strokeWidth: 1.5,
             ...(isInline ? { strokeDasharray: '6 3' } : {}),
           },
-          data: { isInlineObject: isInline },
+          data: { isInlineObject: isInline, edgeStyle },
         })
       }
     })
@@ -675,8 +675,11 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     return 'bezier'
   })
 
+  const edgeStyleRef = useRef(edgeStyle)
+  edgeStyleRef.current = edgeStyle
+
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildNodesAndEdges(types),
+    () => buildNodesAndEdges(types, edgeStyleRef.current),
     [types],
   )
 
@@ -709,7 +712,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   // Re-sync when types change
   useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(types)
+    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(types, edgeStyleRef.current)
     setNodes(newNodes)
     setEdges(newEdges)
     setLayoutApplied(false)

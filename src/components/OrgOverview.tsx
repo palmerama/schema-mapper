@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
+import { version } from '../../package.json'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -188,7 +189,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             <span>·</span>
             <span>{formatNumber(totalDocuments)} {totalDocuments === 1 ? 'document' : 'documents'}</span>
             <span>·</span>
-            <span>v1.9</span>
+            <span>v{version}</span>
           </div>
         )}
       </div>

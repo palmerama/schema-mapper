@@ -282,18 +282,20 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                         content={<Text size={1} muted>{project.id}</Text>}
                         placement="bottom"
                       >
-                        <Tab
-                          aria-controls={`project-panel-${project.id}`}
-                          id={`project-tab-${project.id}`}
-                          label={
-                            <span className="flex items-center gap-1.5">
-                              {project.displayName}
-                              {project.isProjectLoading && <Spinner muted style={{width: 12, height: 12}} />}
+                        <span className="relative inline-flex">
+                          <Tab
+                            aria-controls={`project-panel-${project.id}`}
+                            id={`project-tab-${project.id}`}
+                            label={project.displayName}
+                            selected={selectedProjectId === project.id}
+                            onClick={() => !project.isProjectLoading && handleProjectSelect(project.id)}
+                          />
+                          {project.isProjectLoading && (
+                            <span className="absolute inset-0 flex items-center justify-center rounded bg-black/10 dark:bg-white/10 pointer-events-none tab-loading-overlay">
+                              <Spinner muted style={{width: 14, height: 14}} />
                             </span>
-                          }
-                          selected={selectedProjectId === project.id}
-                          onClick={() => handleProjectSelect(project.id)}
-                        />
+                          )}
+                        </span>
                       </Tooltip>
                     ))}
                   </TabList>

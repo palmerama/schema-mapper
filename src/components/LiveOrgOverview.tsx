@@ -143,6 +143,7 @@ function DatasetDiscovery({
     if (!isLoading && !reportedRef.current) {
       reportedRef.current = true
       if (error) {
+        console.warn(`[Schema Mapper] Schema error for ${projectId}/${datasetName}:`, error)
         onError(projectId)
       } else {
         onDiscovered(projectId, datasetName, types, schemaSource ?? 'inferred', hasDeployedSchema, deployedTypes, inferredTypes)
@@ -287,6 +288,7 @@ function LiveOrgOverviewInner() {
   // Called when useSchemaDiscovery returns an error (e.g. user not a project member)
   const handleDiscoveryError = useCallback(
     (projectId: string) => {
+      console.warn(`[Schema Mapper] Discovery failed for project ${projectId}`)
       dispatch({ type: 'DISCOVERY_ERROR', projectId })
     },
     []
@@ -294,7 +296,8 @@ function LiveOrgOverviewInner() {
 
   // Called when ErrorBoundary catches a thrown error
   const handleBoundaryError = useCallback(
-    (projectId: string) => (_error: Error) => {
+    (projectId: string) => (error: Error) => {
+      console.warn(`[Schema Mapper] Boundary error for project ${projectId}:`, error.message)
       dispatch({ type: 'DISCOVERY_ERROR', projectId })
     },
     []

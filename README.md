@@ -48,9 +48,13 @@ Or manually:
 
 ```bash
 cd <schema-mapper-path>
+git stash                # saves your config changes
 git pull
+git stash pop            # restores your project/org IDs
 pnpm install
 ```
+
+> **Note:** `sanity.cli.ts` and `src/App.tsx` contain your project and org IDs. The stash/pop preserves these across updates.
 
 ## Permissions
 

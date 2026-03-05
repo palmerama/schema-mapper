@@ -712,7 +712,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
 
   // Re-sync when types change
   useEffect(() => {
-    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(types)
+    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(types, edgeStyleRef.current)
     setNodes(newNodes)
     setEdges(newEdges)
     setLayoutApplied(false)

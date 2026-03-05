@@ -371,7 +371,7 @@ export default memo(function FloatingEdge({
       const timer = setTimeout(() => {
         setFadingOutPath(null)
         setDrawingIn(false)
-      }, 500)
+      }, 300)
       return () => clearTimeout(timer)
     }
   }, [edgeStyle])
@@ -392,7 +392,7 @@ export default memo(function FloatingEdge({
           { strokeDashoffset: `${len}`, opacity: 0.4 },
           { strokeDashoffset: '0', opacity: 1 },
         ],
-        { duration: 500, easing: 'ease-out', fill: 'forwards' },
+        { duration: 300, easing: 'ease-out', fill: 'forwards' },
       )
     }
   }, [drawingIn, edgePath])
@@ -411,7 +411,7 @@ export default memo(function FloatingEdge({
             ...style,
             strokeDasharray: baseDash,
             opacity: 0,
-            transition: 'opacity 0.3s ease-out',
+            transition: 'opacity 0.2s ease-out',
           }}
           markerEnd={typeof markerEnd === 'string' ? markerEnd : undefined}
         />

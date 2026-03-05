@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -269,6 +269,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                 }
                 onClick={() => setShowAclDialog(true)}
               >
+                {selectedDataset.aclMode === 'public' ? <GoUnlock className="inline-block mr-1 align-middle" /> : <GoLock className="inline-block mr-1 align-middle" />}
                 {selectedDataset.aclMode}
               </Badge>
               {effectiveSource && (
@@ -388,7 +389,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
               <div className="space-y-4">
                 <div className="rounded-md border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100 font-normal dark:bg-green-900/50 dark:text-green-300">public</Badge>
+                    <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100 font-normal dark:bg-green-900/50 dark:text-green-300"><GoUnlock className="inline-block mr-1 align-middle" />public</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Anyone can read data from this dataset without authentication. Write operations still require a token. This is the default for new datasets and is typical for content that powers public websites.
@@ -397,7 +398,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
 
                 <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300">private</Badge>
+                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300"><GoLock className="inline-block mr-1 align-middle" />private</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     All requests — including reads — require a valid authentication token. Use this for datasets containing sensitive or internal data that shouldn't be publicly accessible.

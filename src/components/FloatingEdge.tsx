@@ -122,6 +122,8 @@ function getOffsetStepPath(
   sx: number, sy: number, _sp: Position,
   tx: number, ty: number, _tp: Position,
   edgeIndex: number, siblingCount: number,
+  srcCenterX?: number, srcCenterY?: number,
+  tgtCenterX?: number, tgtCenterY?: number,
 ): [string, number, number] {
   const spread = 25
   const siblingOffset = siblingCount > 1
@@ -130,19 +132,26 @@ function getOffsetStepPath(
   const r = 8 // corner radius
   const minStub = 35 // minimum horizontal distance from source box before turning
 
-  const dx = tx - sx
-  const dy = ty - sy
+  // Use node centers for routing decision, fall back to endpoints
+  const cx1 = srcCenterX ?? sx
+  const cy1 = srcCenterY ?? sy
+  const cx2 = tgtCenterX ?? tx
+  const cy2 = tgtCenterY ?? ty
+  const dx = cx2 - cx1
+  const dy = cy2 - cy1
   const absDx = Math.abs(dx)
   const absDy = Math.abs(dy)
-  const dirX = dx > 0 ? 1 : -1
-  const dirY = dy > 0 ? 1 : -1
+  // Direction based on node centers (for routing decision)
+  // But use endpoint positions for actual path geometry
+  const edgeDirX = (tx - sx) > 0 ? 1 : ((tx - sx) < 0 ? -1 : (dx > 0 ? 1 : -1))
+  const edgeDirY = (ty - sy) > 0 ? 1 : ((ty - sy) < 0 ? -1 : (dy > 0 ? 1 : -1))
 
   // Decide routing: mostly vertical → 4-segment (H→V→H→V), mostly horizontal → 3-segment (H→V→H)
   const useVerticalEntry = absDy > absDx * 0.8 || absDx < 60
 
   if (useVerticalEntry) {
     // 4-segment: H stub → V down → H across → V to target
-    const stubX = sx + dirX * (minStub + Math.abs(siblingOffset))
+    const stubX = sx + edgeDirX * (minStub + Math.abs(siblingOffset))
     const midY = (sy + ty) / 2 + siblingOffset
 
     const segments = [
@@ -160,10 +169,10 @@ function getOffsetStepPath(
   // 3-segment: H → V → H
   const baseMiddleX = (sx + tx) / 2
   // Ensure minimum stub distance from source
-  const minMidX = sx + dirX * minStub
+  const minMidX = sx + edgeDirX * minStub
   let midX = baseMiddleX + siblingOffset
-  if (dirX > 0 && midX < minMidX) midX = minMidX + Math.abs(siblingOffset)
-  if (dirX < 0 && midX > minMidX) midX = minMidX - Math.abs(siblingOffset)
+  if (edgeDirX > 0 && midX < minMidX) midX = minMidX + Math.abs(siblingOffset)
+  if (edgeDirX < 0 && midX > minMidX) midX = minMidX - Math.abs(siblingOffset)
 
   const segments = [
     { x: sx, y: sy },
@@ -265,6 +274,11 @@ export default memo(function FloatingEdge({
   const siblingCount = (data as any)?.siblingCount as number ?? 1
 
   if (edgeStyle === 'step') {
+    const sourceX = sourceNode.internals.positionAbsolute.x
+    const sourceW = sourceNode.measured.width ?? 280
+    const sourceCenterX = sourceX + sourceW / 2
+    const sourceCenterY = sourceNode.internals.positionAbsolute.y + (sourceNode.measured.height ?? 100) / 2
+
     const targetX = targetNode.internals.positionAbsolute.x
     const targetW = targetNode.measured.width ?? 280
     const targetCenterX = targetX + targetW / 2
@@ -272,9 +286,9 @@ export default memo(function FloatingEdge({
     const targetH = targetNode.measured.height ?? 100
     const targetCenterY = targetY + targetH / 2
 
-    // Compute routing strategy (must match getOffsetStepPath logic)
-    const rawDx = targetCenterX - sourceIntersection.x
-    const rawDy = targetCenterY - sourceIntersection.y
+    // Use NODE CENTERS for routing decision — handle Y offset must not affect this
+    const rawDx = targetCenterX - sourceCenterX
+    const rawDy = targetCenterY - sourceCenterY
     const absDx = Math.abs(rawDx)
     const absDy = Math.abs(rawDy)
     const useVerticalEntry = absDy > absDx * 0.8 || absDx < 60
@@ -326,10 +340,16 @@ export default memo(function FloatingEdge({
   let labelY: number
 
   if (edgeStyle === 'step') {
+    // Pass node centers for routing decision (handle positions for actual path endpoints)
+    const srcCX = sourceNode.internals.positionAbsolute.x + (sourceNode.measured.width ?? 280) / 2
+    const srcCY = sourceNode.internals.positionAbsolute.y + (sourceNode.measured.height ?? 100) / 2
+    const tgtCX = targetNode.internals.positionAbsolute.x + (targetNode.measured.width ?? 280) / 2
+    const tgtCY = targetNode.internals.positionAbsolute.y + (targetNode.measured.height ?? 100) / 2
     ;[edgePath, labelX, labelY] = getOffsetStepPath(
       sourceIntersection.x, sourceIntersection.y, sourcePos,
       targetIntersection.x, targetIntersection.y, targetPos,
       edgeIndex, siblingCount,
+      srcCX, srcCY, tgtCX, tgtCY,
     )
   } else if (edgeStyle === 'straight') {
     ;[edgePath, labelX, labelY] = getStraightPath(pathParams)

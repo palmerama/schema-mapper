@@ -81,12 +81,12 @@ function FieldRow({
       className={`
         relative flex items-center justify-between gap-2 px-3 py-1.5 text-xs
         ${even ? 'bg-transparent' : 'bg-muted/40'}
-        ${isRef ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}
+        ${isRef ? 'bg-indigo-50/60' : ''}
       `}
     >
       {/* Field name */}
       <span
-        className={`truncate font-mono ${isRef || isInline ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-card-foreground'}`}
+        className={`truncate font-mono ${isRef || isInline ? 'font-medium text-indigo-700' : 'text-card-foreground'}`}
         title={field.name}
       >
         {field.name}

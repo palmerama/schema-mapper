@@ -56,7 +56,7 @@ export function ProjectCard({ project, children }: ProjectCardProps) {
             href={studioUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 hover:underline"
           >
             <span aria-hidden="true">🔗</span>
             {studioUrl}

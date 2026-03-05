@@ -44,8 +44,8 @@ export function DatasetCard({ dataset }: DatasetCardProps) {
               variant={aclMode === 'public' ? 'default' : 'outline'}
               className={
                 aclMode === 'public'
-                  ? 'border-green-300 bg-green-100 text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-300'
-                  : 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                  ? 'border-green-300 bg-green-100 text-green-800'
+                  : 'border-amber-300 bg-amber-100 text-amber-800'
               }
             >
               {aclMode}

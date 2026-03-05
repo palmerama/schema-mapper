@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useRef, useState, useEffect } from 'react'
 import {
   useInternalNode,
   getBezierPath,
@@ -173,6 +173,19 @@ export default memo(function FloatingEdge({
     ;[edgePath, labelX, labelY] = getBezierPath(pathParams)
   }
 
+  // Animate only when edge style changes (not on layout/position changes)
+  const prevStyleRef = useRef(edgeStyle)
+  const [animating, setAnimating] = useState(false)
+
+  useEffect(() => {
+    if (prevStyleRef.current !== edgeStyle) {
+      prevStyleRef.current = edgeStyle
+      setAnimating(true)
+      const timer = setTimeout(() => setAnimating(false), 350)
+      return () => clearTimeout(timer)
+    }
+  }, [edgeStyle])
+
   return (
     <>
       <BaseEdge
@@ -181,7 +194,7 @@ export default memo(function FloatingEdge({
         markerEnd={markerEnd}
         style={{
           ...style,
-          transition: 'd 0.3s ease-in-out',
+          ...(animating ? { transition: 'd 0.3s ease-in-out' } : {}),
         }}
       />
       {label && (

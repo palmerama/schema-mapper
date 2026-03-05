@@ -329,6 +329,14 @@ function LiveOrgOverviewInner() {
 
       // Don't re-fetch if already cached or currently loading
       if (datasetsRef.current.has(projectId) || datasetsLoadingRef.current.has(projectId)) {
+        // Still auto-select production if datasets are cached
+        const cached = datasetsRef.current.get(projectId)
+        if (cached) {
+          const production = cached.find(d => d.name === 'production')
+          if (production) {
+            dispatch({type: 'SELECT_DATASET', datasetName: 'production'})
+          }
+        }
         return
       }
 

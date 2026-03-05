@@ -242,7 +242,9 @@ function ProjectDatasetsWrapper({
 // ---------------------------------------------------------------------------
 
 function LiveOrgOverviewInner() {
-  const projects = useProjects()
+  const allProjects = useProjects()
+  // DEBUG: filter to single project for testing
+  const projects = allProjects.filter((p: any) => p.id === '3do82whm')
   const orgId = useDashboardOrganizationId()
   const client = useClient({apiVersion: '2024-01-01'})
   const [orgName, setOrgName] = useState<string | undefined>(undefined)

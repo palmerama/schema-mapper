@@ -495,6 +495,20 @@ function buildNodesAndEdges(types: DiscoveredType[]): {
   const incomingCount = new Map<string, number>()
   edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1))
 
+  // Compute sibling indices for step-edge offset (edges from same source)
+  const sourceGroups = new Map<string, number[]>()
+  edges.forEach((e, i) => {
+    const group = sourceGroups.get(e.source) || []
+    group.push(i)
+    sourceGroups.set(e.source, group)
+  })
+  sourceGroups.forEach((indices) => {
+    indices.forEach((edgeIdx, siblingIdx) => {
+      const e = edges[edgeIdx]
+      e.data = { ...e.data, edgeIndex: siblingIdx, siblingCount: indices.length }
+    })
+  })
+
   // Mark nodes with connection info
   const hasIncoming = new Set(edges.map(e => e.target))
   const hasOutgoing = new Set(edges.map(e => e.source))

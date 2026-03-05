@@ -115,6 +115,31 @@ function getEdgePosition(
 }
 
 // ---------------------------------------------------------------------------
+// Custom step path with per-edge midpoint offset to prevent overlapping
+// ---------------------------------------------------------------------------
+
+function getOffsetStepPath(
+  sx: number, sy: number, _sp: Position,
+  tx: number, ty: number, _tp: Position,
+  edgeIndex: number, siblingCount: number,
+): [string, number, number] {
+  // Calculate midpoint X with offset to fan out parallel edges
+  const baseMiddleX = (sx + tx) / 2
+  const spread = 20 // px between each sibling's vertical segment
+  const offset = siblingCount > 1
+    ? (edgeIndex - (siblingCount - 1) / 2) * spread
+    : 0
+  const midX = baseMiddleX + offset
+
+  // Build path: horizontal from source → vertical at midX → horizontal to target
+  const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`
+  const labelX = midX
+  const labelY = (sy + ty) / 2
+
+  return [path, labelX, labelY]
+}
+
+// ---------------------------------------------------------------------------
 // FloatingEdge component
 // ---------------------------------------------------------------------------
 
@@ -161,12 +186,18 @@ export default memo(function FloatingEdge({
 
   // Pick path function based on edge style passed via data
   const edgeStyle = (data as any)?.edgeStyle as string | undefined
+  const edgeIndex = (data as any)?.edgeIndex as number ?? 0
+  const siblingCount = (data as any)?.siblingCount as number ?? 1
   let edgePath: string
   let labelX: number
   let labelY: number
 
   if (edgeStyle === 'step') {
-    ;[edgePath, labelX, labelY] = getSmoothStepPath(pathParams)
+    ;[edgePath, labelX, labelY] = getOffsetStepPath(
+      sourceIntersection.x, sourceIntersection.y, sourcePos,
+      targetIntersection.x, targetIntersection.y, targetPos,
+      edgeIndex, siblingCount,
+    )
   } else if (edgeStyle === 'straight') {
     ;[edgePath, labelX, labelY] = getStraightPath(pathParams)
   } else {

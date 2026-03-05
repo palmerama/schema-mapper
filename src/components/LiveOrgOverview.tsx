@@ -19,6 +19,28 @@ import useProjectAccess from '../hooks/useProjectAccess'
 import type {ProjectInfo, DatasetInfo, DiscoveredType} from '../types'
 
 // ---------------------------------------------------------------------------
+// Management API helper — uses fetch() directly to avoid client's project-scoped host
+// ---------------------------------------------------------------------------
+
+async function managementApiFetch<T>(path: string, client: any, signal?: AbortSignal): Promise<T> {
+  const config = client.config()
+  const token = config.token
+  const res = await fetch(`https://api.sanity.io/v2024-01-01${path}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    signal,
+  })
+  if (!res.ok) {
+    const err: any = new Error(`Management API ${res.status}: ${res.statusText}`)
+    err.statusCode = res.status
+    throw err
+  }
+  return res.json()
+}
+
+// ---------------------------------------------------------------------------
 // ErrorBoundary — catches errors and reports them via onError callback
 // ---------------------------------------------------------------------------
 
@@ -246,9 +268,8 @@ function LiveOrgOverviewInner() {
   // Fetch org name from management API
   useEffect(() => {
     if (!orgId) return
-    client
-      .request({url: 'https://api.sanity.io/v2024-01-01/organizations'})
-      .then((orgs: {id: string; name: string}[]) => {
+    managementApiFetch<{id: string; name: string}[]>('/organizations', client)
+      .then((orgs) => {
         const org = orgs.find((o) => o.id === orgId)
         if (org) setOrgName(org.name)
       })
@@ -313,10 +334,7 @@ function LiveOrgOverviewInner() {
 
       dispatch({type: 'DATASETS_LOADING', projectId})
 
-      client
-        .request<{name: string; aclMode: string}[]>({
-          url: `https://api.sanity.io/v2024-01-01/projects/${projectId}/datasets`,
-        })
+      managementApiFetch<{name: string; aclMode: string}[]>(`/projects/${projectId}/datasets`, client)
         .then((rawDatasets) => {
           const datasets: DatasetInfo[] = rawDatasets
             .filter((d) => !d.name.endsWith('-comments'))

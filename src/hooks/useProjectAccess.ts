@@ -58,10 +58,19 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
 
     async function checkAccess() {
       try {
-        await clientRef.current.request({
-          url: `https://api.sanity.io/v2024-01-01/projects/${projectId}`,
+        const config = clientRef.current.config()
+        const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${projectId}`, {
+          headers: {
+            Authorization: `Bearer ${config.token}`,
+            'Content-Type': 'application/json',
+          },
           signal: abortController.signal,
         })
+        if (!res.ok) {
+          const err: any = new Error(`${res.status}`)
+          err.statusCode = res.status
+          throw err
+        }
 
         // Request succeeded — user has access
         if (!abortController.signal.aborted) {

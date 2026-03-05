@@ -19,7 +19,7 @@ import type { DiscoveredField, ProjectInfo } from './types'
 function useLatestVersion() {
   const [latest, setLatest] = useState<string | null>(null)
   useEffect(() => {
-    fetch('https://raw.githubusercontent.com/palmerama/schema-mapper/main/package.json')
+    fetch(`https://raw.githubusercontent.com/palmerama/schema-mapper/main/package.json?_=${Date.now()}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(pkg => setLatest(pkg.version))
       .catch(() => {}) // silent fail

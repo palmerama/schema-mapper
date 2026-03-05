@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
@@ -10,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SchemaGraph } from './SchemaGraph'
 import { ExportDropdown } from './ExportDropdown'
-import type { DiscoveredField, ProjectInfo } from './types'
+import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo } from './types'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -81,14 +80,28 @@ function VersionBadge() {
 }
 
 // ---------------------------------------------------------------------------
-// Props
+// Props — new lazy-loading architecture
 // ---------------------------------------------------------------------------
 
 interface OrgOverviewProps {
-  projects: ProjectInfo[]
-  isLoading?: boolean
   orgId?: string
   orgName?: string
+  projects: ProjectInfo[]           // accessible projects, each may have isProjectLoading flag
+  lockedProjects: ProjectInfo[]     // confirmed no-access
+  // Currently selected
+  selectedProjectId: string | null
+  selectedDatasetName: string | null
+  // Data for selected project/dataset
+  datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
+  types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
+  schemaSource: 'deployed' | 'inferred' | null
+  // Loading states
+  isCheckingAccess: boolean         // still checking which projects user can access
+  isDatasetsLoading: boolean        // selected project's datasets are loading
+  isSchemasLoading: boolean         // selected dataset's schema is loading
+  // Callbacks — these trigger lazy loading in parent
+  onProjectSelect: (projectId: string) => void
+  onDatasetSelect: (datasetName: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -102,15 +115,6 @@ function formatNumber(n: number): string {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-function ContentSkeleton() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 flex-1 min-h-[500px]">
-      <Spinner muted />
-      <p className="text-sm text-muted-foreground">Loading Schema Mapper…</p>
-    </div>
-  )
-}
 
 function EmptyState() {
   return (
@@ -131,114 +135,47 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
-function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOverviewProps) {
-  // ---- Routing ----
-  const { projectId: urlProjectId, dataset: urlDataset } = useParams()
-  const navigate = useNavigate()
-
-  // ---- State ----
+function OrgOverview({
+  orgId,
+  orgName,
+  projects,
+  lockedProjects,
+  selectedProjectId,
+  selectedDatasetName,
+  datasets,
+  types,
+  schemaSource,
+  isCheckingAccess,
+  isDatasetsLoading,
+  isSchemasLoading,
+  onProjectSelect,
+  onDatasetSelect,
+}: OrgOverviewProps) {
+  // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)
+
+  // ---- Dialog state ----
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
 
-  const lockedProjects = useMemo(() => projects.filter(p => p.hasAccess === false), [projects])
-  const accessibleProjects = useMemo(() => projects.filter(p => p.hasAccess !== false), [projects])
+  // ---- Derived state ----
+  const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null
+  const selectedDataset = datasets.find(d => d.name === selectedDatasetName) ?? null
 
-  // localStorage key for this org
-  const storageKey = orgId ? `schema-mapper:${orgId}:lastRoute` : null
+  // Use the schema source from props (parent controls deployed/inferred)
+  const effectiveSource = schemaSource
+  const effectiveTypes = types
 
-  // Resolve selected project/dataset from URL params
-  const selectedProjectId = urlProjectId || null
-  const selectedDatasetName = urlDataset || null
-
-  // Navigate helper — updates URL and persists to localStorage
-  const navigateTo = useCallback((projectId: string | null, dataset: string | null) => {
-    const resolvedOrg = orgId || '_'
-    let path = `/${resolvedOrg}`
-    if (projectId) {
-      path += `/${projectId}`
-      if (dataset) {
-        path += `/${dataset}`
-      }
-    }
-    navigate(path, { replace: true })
-    if (storageKey && projectId) {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({ projectId, dataset }))
-      } catch {}
-    }
-  }, [orgId, navigate, storageKey])
-
-  // On mount: if no URL params, try to restore from localStorage or auto-select first
-  useEffect(() => {
-    if (isLoading || projects.length === 0) return
-    if (urlProjectId) return // URL already has a selection
-
-    const firstAccessible = accessibleProjects[0]
-    let restored = false
-
-    if (storageKey) {
-      try {
-        const saved = localStorage.getItem(storageKey)
-        if (saved) {
-          const { projectId, dataset } = JSON.parse(saved)
-          const project = accessibleProjects.find(p => p.id === projectId)
-          if (project) {
-            const ds = dataset && project.datasets.find(d => d.name === dataset) ? dataset : project.datasets[0]?.name
-            navigateTo(projectId, ds || null)
-            restored = true
-          }
-        }
-      } catch {}
-    }
-
-    if (!restored && firstAccessible) {
-      navigateTo(firstAccessible.id, firstAccessible.datasets[0]?.name || null)
-    }
-  }, [isLoading, projects, urlProjectId, accessibleProjects, storageKey, navigateTo])
-
-  // Auto-select first dataset when project changes but no dataset in URL
-  useEffect(() => {
-    if (!selectedProjectId || selectedDatasetName) return
-    const project = projects.find(p => p.id === selectedProjectId)
-    if (project && project.datasets.length > 0) {
-      navigateTo(selectedProjectId, project.datasets[0].name)
-    }
-  }, [selectedProjectId, selectedDatasetName, projects, navigateTo])
-
-  // Derived state
-  const selectedProject = projects.find(p => p.id === selectedProjectId)
-  const selectedDataset = selectedProject?.datasets.find(d => d.name === selectedDatasetName)
-
-  // Use the active schema source directly — deployed if available, inferred otherwise
-  const effectiveSource = selectedDataset?.schemaSource ?? null
-  const effectiveTypes = selectedDataset?.types ?? []
-
-  // ---- Handlers ----
-  const handleProjectSelect = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
-    const firstDataset = project?.datasets[0]?.name || null
-    navigateTo(projectId, firstDataset)
-  }
-
-  const handleDatasetSelect = (datasetName: string) => {
-    navigateTo(selectedProjectId, datasetName)
-  }
-
-  // ---- Compute aggregate stats ----
+  // ---- Compute aggregate stats (show what we know so far) ----
   const totalProjects = projects.length
-  const totalDatasets = projects.reduce((sum, p) => sum + p.datasets.length, 0)
-  const totalTypes = projects.reduce(
-    (sum, p) =>
-      sum + p.datasets.reduce((dSum, d) => dSum + d.types.length, 0),
-    0
-  )
-  const totalDocuments = projects.reduce(
-    (sum, p) =>
-      sum + p.datasets.reduce((dSum, d) => dSum + d.totalDocuments, 0),
-    0
-  )
+  // Dataset/type/doc counts: only from the top-level datasets prop (selected project's loaded data)
+  const totalDatasets = datasets.length
+  const totalTypes = effectiveTypes.length
+  const totalDocuments = selectedDataset?.totalDocuments ?? 0
+
+  // Whether we have any data to show at all (not in initial loading with zero projects)
+  const hasNoProjects = !isCheckingAccess && projects.length === 0 && lockedProjects.length === 0
 
   return (
     <div className="flex flex-col h-screen px-6">
@@ -247,83 +184,128 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
-        {!isLoading && (
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
-            <span>{formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}</span>
-            <span>·</span>
-            <span>{formatNumber(totalDatasets)} {totalDatasets === 1 ? 'dataset' : 'datasets'}</span>
-            <span>·</span>
-            <span>{formatNumber(totalTypes)} {totalTypes === 1 ? 'type' : 'types'}</span>
-            <span>·</span>
-            <span>{formatNumber(totalDocuments)} {totalDocuments === 1 ? 'document' : 'documents'}</span>
-            <span>·</span>
-            <VersionBadge />
-          </div>
-        )}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
+          <span>
+            {formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}
+            {isCheckingAccess && '…'}
+          </span>
+          {selectedProjectId && (
+            <>
+              <span>·</span>
+              <span>
+                {isDatasetsLoading
+                  ? '… datasets'
+                  : `${formatNumber(totalDatasets)} ${totalDatasets === 1 ? 'dataset' : 'datasets'}`}
+              </span>
+            </>
+          )}
+          {selectedDatasetName && !isSchemasLoading && effectiveTypes.length > 0 && (
+            <>
+              <span>·</span>
+              <span>{formatNumber(totalTypes)} {totalTypes === 1 ? 'type' : 'types'}</span>
+              <span>·</span>
+              <span>{formatNumber(totalDocuments)} {totalDocuments === 1 ? 'document' : 'documents'}</span>
+            </>
+          )}
+          <span>·</span>
+          <VersionBadge />
+        </div>
       </div>
 
       {/* ---- Content Area ---- */}
-      {isLoading ? (
-        <ContentSkeleton />
-      ) : projects.length === 0 ? (
+      {hasNoProjects ? (
         <EmptyState />
       ) : (
         <>
           {/* ---- Navigation Grid ---- */}
           <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
+            {/* ---- Project Tabs ---- */}
             <>
-                <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
-                <div className="flex items-start gap-2">
-                  <TabList space={1}>
-                    {accessibleProjects.map(project => (
-                      <Tooltip
-                        key={project.id}
-                        content={<Text size={1} muted>{project.id}</Text>}
-                        placement="bottom"
-                      >
-                        <Tab
-                          aria-controls={`project-panel-${project.id}`}
-                          id={`project-tab-${project.id}`}
-                          label={project.displayName}
-                          selected={selectedProjectId === project.id}
-                          onClick={() => handleProjectSelect(project.id)}
-                        />
-                      </Tooltip>
-                    ))}
-                  </TabList>
-                  {lockedProjects.length > 0 && (
-                    <button
-                      onClick={() => setShowLockedDialog(true)}
-                      className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      + {lockedProjects.length} with no access
-                    </button>
-                  )}
-                </div>
-              </>
+              <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
+              <div className="flex items-start gap-2">
+                <TabList space={1}>
+                  {projects.map(project => {
+                    const isLoading = isCheckingAccess || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
+                    return (
+                      <span key={project.id} className="relative inline-flex">
+                        {!isLoading ? (
+                          <Tooltip
+                            content={<Text size={1} muted>{project.id}</Text>}
+                            placement="bottom"
+                          >
+                            <Tab
+                              aria-controls={`project-panel-${project.id}`}
+                              id={`project-tab-${project.id}`}
+                              label={project.displayName}
+                              selected={selectedProjectId === project.id}
+                              onClick={() => onProjectSelect(project.id)}
+                            />
+                          </Tooltip>
+                        ) : (
+                          <Tab
+                            aria-controls={`project-panel-${project.id}`}
+                            id={`project-tab-${project.id}`}
+                            label={project.displayName}
+                            selected={selectedProjectId === project.id}
+                            disabled
+                          />
+                        )}
+                        {isLoading && (
+                          <span className="absolute inset-0 rounded bg-gray-200/80 dark:bg-gray-700/80 animate-pulse pointer-events-none" />
+                        )}
+                      </span>
+                    )
+                  })}
+                </TabList>
+                {isCheckingAccess && projects.length === 0 && (
+                  <div className="flex items-center gap-2 mt-[3px]">
+                    <Spinner muted style={{width: 14, height: 14}} />
+                    <span className="text-xs text-muted-foreground">Checking access…</span>
+                  </div>
+                )}
+                {lockedProjects.length > 0 && (
+                  <button
+                    onClick={() => setShowLockedDialog(true)}
+                    className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    + {lockedProjects.length} with no access
+                  </button>
+                )}
+              </div>
+            </>
 
-            {selectedProject && selectedProject.datasets.length > 0 && (
+            {/* ---- Dataset Tabs ---- */}
+            {selectedProjectId && (
               <>
                 <span className="text-sm font-normal text-muted-foreground pt-[3px]">Datasets:</span>
-                <TabList space={1}>
-                  {selectedProject.datasets.map(dataset => (
-                    <Tab
-                      key={dataset.name}
-                      aria-controls={`dataset-panel-${dataset.name}`}
-                      id={`dataset-tab-${dataset.name}`}
-                      label={dataset.name}
-                      selected={selectedDatasetName === dataset.name}
-                      onClick={() => handleDatasetSelect(dataset.name)}
-                    />
-                  ))}
-                </TabList>
+                {isDatasetsLoading ? (
+                  <div className="flex items-center gap-2 pt-[3px]">
+                    <Spinner muted style={{width: 14, height: 14}} />
+                    <span className="text-sm text-muted-foreground">Loading datasets…</span>
+                  </div>
+                ) : datasets.length > 0 ? (
+                  <TabList space={1}>
+                    {datasets.map(dataset => (
+                      <Tab
+                        key={dataset.name}
+                        aria-controls={`dataset-panel-${dataset.name}`}
+                        id={`dataset-tab-${dataset.name}`}
+                        label={dataset.name}
+                        selected={selectedDatasetName === dataset.name}
+                        onClick={() => onDatasetSelect(dataset.name)}
+                      />
+                    ))}
+                  </TabList>
+                ) : (
+                  <span className="text-sm text-muted-foreground pt-[3px]">No datasets found</span>
+                )}
               </>
             )}
           </div>
 
           {/* ---- Dataset Info Line ---- */}
-          {selectedDataset && (
+          {selectedDataset && !isSchemasLoading && (
             <div className="flex items-center gap-2 mt-3 py-2 text-sm">
               <GoDatabase className="text-base" />
               <span className="font-normal">{selectedDataset.name}</span>
@@ -371,7 +353,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                       totalDocuments: selectedDataset.totalDocuments,
                       typeCount: effectiveTypes.length,
                       schemaSource: effectiveSource,
-                      orgId: orgId ?? undefined,
+                      orgId: orgId,
                       orgName: orgName,
                     }}
                   />
@@ -379,12 +361,23 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
               )}
             </div>
           )}
+
+          {/* ---- Schema Graph Area ---- */}
           <div ref={graphRef} className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden">
-            {selectedDataset ? (
+            {!selectedDatasetName ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p>Select a project and dataset to view the schema graph</p>
+              </div>
+            ) : isSchemasLoading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <Spinner muted />
+                <p className="text-sm text-muted-foreground">Loading schema…</p>
+              </div>
+            ) : effectiveTypes.length > 0 ? (
               <SchemaGraph types={effectiveTypes} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Select a project and dataset to view the schema graph</p>
+                <p>No types found in this dataset</p>
               </div>
             )}
           </div>

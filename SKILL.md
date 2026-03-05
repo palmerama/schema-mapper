@@ -72,11 +72,14 @@ Follow these steps when a user says "update schema mapper".
 
 Look for the schema-mapper directory. Check `apps/schema-mapper` first, then ask the user.
 
-### 2. Backup config
+### 2. Backup config lines
 
-Read and save the full contents of these files (they contain the user's project/org config):
-- `<path>/sanity.cli.ts`
-- `<path>/src/App.tsx`
+These two files contain the user's project and org IDs (often with commented-out alternatives). Read and save the **exact lines** containing these IDs:
+
+- `<path>/sanity.cli.ts` — find the `organizationId:` line (e.g. `organizationId: 'abc123', // my org`)
+- `<path>/src/App.tsx` — find the `projectId:` line in the config array (e.g. `projectId: 'xyz789', // production`)
+
+Save the **complete lines** including any inline comments — the user may have other IDs commented alongside. You will reinstate these exact lines after the update.
 
 ### 3. Download latest
 
@@ -84,13 +87,17 @@ Read and save the full contents of these files (they contain the user's project/
 cd <path> && curl -sL https://github.com/sanity-labs/schema-mapper/archive/main.tar.gz | tar xz
 ```
 
-### 4. Overwrite source files
+### 4. Overwrite ALL source files
 
-Copy everything from the extracted `schema-mapper-main/` directory into `<path>`, **EXCEPT `sanity.cli.ts` and `src/App.tsx`** — these contain the user's project and org IDs and MUST NOT be overwritten.
+Copy **everything** from the extracted `schema-mapper-main/` directory into `<path>`, including any new files that didn't exist before. The only exceptions are `sanity.cli.ts` and `src/App.tsx` — these contain the user's project and org IDs and MUST NOT be overwritten. Use `rsync` or `cp -r` to ensure new files are added and deleted files are removed:
 
-### 5. Restore config
+```bash
+rsync -a --exclude='sanity.cli.ts' --exclude='src/App.tsx' <path>/schema-mapper-main/ <path>/
+```
 
-Write back the saved `sanity.cli.ts` and `src/App.tsx` files.
+### 5. Restore config lines
+
+In the updated `sanity.cli.ts` and `src/App.tsx`, find the placeholder lines (`YOUR_ORG_ID`, `YOUR_PROJECT_ID`) and replace them with the **exact lines** you saved in step 2. This preserves the user's IDs and any commented-out alternatives on the same lines.
 
 ### 6. Clean up
 

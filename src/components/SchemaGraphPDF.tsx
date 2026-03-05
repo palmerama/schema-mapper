@@ -239,10 +239,11 @@ function estimateTextWidth(text: string, fontSize: number, isMono: boolean = fal
 // ---------------------------------------------------------------------------
 
 function PDFNode({ node }: { node: PDFNodeData }) {
-  const { x, y, width, typeName, documentCount, fields } = node
+  const { x, y, width, height, typeName, documentCount, fields } = node
+  // Use actual measured height from DOM, compute field row height to fit
+  const totalH = height
   const headerH = NODE_HEADER_H
-  const fieldH = NODE_FIELD_H
-  const totalH = headerH + fields.length * fieldH
+  const fieldH = fields.length > 0 ? (totalH - headerH) / fields.length : NODE_FIELD_H
 
   const docCountStr = documentCount.toLocaleString()
   const badgeW = estimateTextWidth(docCountStr, NODE_BADGE_FONT_SIZE) + 10

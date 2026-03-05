@@ -271,6 +271,14 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
       {open && (
         <div className="absolute right-0 top-full mt-1 z-20 bg-white rounded-md py-1 min-w-[120px] border border-gray-200">
           <button
+            onClick={handlePDF}
+            disabled={!!exporting}
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {exporting === 'pdf' ? 'Exporting…' : 'PDF (vector)'}
+          </button>
+          <div className="my-1 border-t border-gray-100" />
+          <button
             onClick={handlePNG}
             disabled={!!exporting}
             className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -283,13 +291,6 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
             className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {exporting === 'svg' ? 'Exporting…' : 'SVG'}
-          </button>
-          <button
-            onClick={handlePDF}
-            disabled={!!exporting}
-            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {exporting === 'pdf' ? 'Exporting…' : 'PDF (vector)'}
           </button>
         </div>
       )}

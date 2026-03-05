@@ -73,7 +73,7 @@ You'll be prompted to choose a hostname (e.g. `my-org-schema-mapper`). After dep
 
 ## Tips
 
-- **Dark mode** — In dev mode, some browsers may not pick up the dashboard's dark mode in the iframe. Right-click the app and reload the iframe. This doesn't happen with deployed apps.
+- **Iframe reload** — In dev mode, some browsers (especially Arc) may require you to right-click the app and reload the iframe for it to connect properly. This is not an issue once the app is deployed.
 
 ## Tech Stack
 

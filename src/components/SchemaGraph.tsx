@@ -23,6 +23,7 @@ import '@xyflow/react/dist/style.css'
 
 import { Tab } from '@sanity/ui'
 import { RxReset } from 'react-icons/rx'
+import { useDarkMode } from '@/hooks/useDarkMode'
 import SchemaNode, { SCHEMA_NODE_TYPE, type SchemaNodeData } from './SchemaNode'
 import FloatingEdge from './FloatingEdge'
 import type { DiscoveredField, DiscoveredType } from './types'
@@ -581,7 +582,7 @@ function GraphControls({
       </div>
       <div className="flex items-center gap-3 px-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Spacing</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Spacing</span>
           <input
             type="range"
             min="10"
@@ -592,7 +593,7 @@ function GraphControls({
           />
           <button
             onClick={onResetSpacing}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
             title="Reset to default"
           >
             <RxReset className="text-xs" />
@@ -608,6 +609,7 @@ function GraphControls({
 // ---------------------------------------------------------------------------
 
 function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
+  const isDark = useDarkMode()
   const { fitView } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -789,7 +791,7 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
     <div ref={containerRef} className="relative w-full h-full">
       <GraphControls layout={layoutType} onLayoutChange={handleLayoutChange} edgeStyle={edgeStyle} onEdgeStyleChange={handleEdgeStyleChange} spacing={spacing} onSpacingChange={handleSpacingChange} onResetSpacing={handleResetSpacing} />
       {isLayouting && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border rounded-md px-3 py-1 text-xs text-gray-500 dark:text-gray-400">
           Layouting…
         </div>
       )}
@@ -813,12 +815,12 @@ function SchemaGraphInner({ types }: { types: DiscoveredType[] }) {
           animated: false,
         }}
       >
-        <Background gap={16} size={1} color="#e2e8f0" />
+        <Background gap={16} size={1} color={isDark ? '#334155' : '#e2e8f0'} />
         <Controls showInteractive={false} />
         <MiniMap
           nodeStrokeWidth={3}
-          nodeColor="#e0f2fe"
-          maskColor="rgba(240, 240, 240, 0.7)"
+          nodeColor={isDark ? '#1e3a5f' : '#e0f2fe'}
+          maskColor={isDark ? 'rgba(15, 15, 25, 0.7)' : 'rgba(240, 240, 240, 0.7)'}
           pannable
           zoomable
         />

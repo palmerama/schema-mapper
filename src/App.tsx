@@ -1,8 +1,8 @@
 import type {SanityConfig} from '@sanity/sdk'
 import {SanityApp} from '@sanity/sdk-react'
-import {ThemeProvider, Spinner} from '@sanity/ui'
+import {ThemeProvider, Spinner, usePrefersDark} from '@sanity/ui'
 import {buildTheme} from '@sanity/ui/theme'
-import {Suspense} from 'react'
+import {Suspense, useEffect} from 'react'
 import {HashRouter, Routes, Route, Navigate} from 'react-router-dom'
 import {LiveOrgOverview} from './components/LiveOrgOverview'
 import './styles/globals.css'
@@ -25,21 +25,31 @@ function LoadingScreen() {
   )
 }
 
+function DarkModeProvider({ children }: { children: React.ReactNode }) {
+  const prefersDark = usePrefersDark()
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', prefersDark)
+  }, [prefersDark])
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <ThemeProvider theme={theme}>
-      <SanityApp config={config} fallback={<LoadingScreen />}>
-        <Suspense fallback={<LoadingScreen />}>
-          <HashRouter>
-            <Routes>
-              <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
-              <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
-              <Route path="/:orgId" element={<LiveOrgOverview />} />
-              <Route path="/" element={<LiveOrgOverview />} />
-            </Routes>
-          </HashRouter>
-        </Suspense>
-      </SanityApp>
+      <DarkModeProvider>
+        <SanityApp config={config} fallback={<LoadingScreen />}>
+          <Suspense fallback={<LoadingScreen />}>
+            <HashRouter>
+              <Routes>
+                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview />} />
+                <Route path="/:orgId/:projectId" element={<LiveOrgOverview />} />
+                <Route path="/:orgId" element={<LiveOrgOverview />} />
+                <Route path="/" element={<LiveOrgOverview />} />
+              </Routes>
+            </HashRouter>
+          </Suspense>
+        </SanityApp>
+      </DarkModeProvider>
     </ThemeProvider>
   )
 }

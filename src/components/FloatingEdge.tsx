@@ -436,7 +436,7 @@ export default memo(function FloatingEdge({
       {label && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan text-[11px] font-normal text-slate-500 bg-slate-50/85 px-1.5 py-0.5 rounded"
+            className="nodrag nopan text-[11px] font-normal text-slate-500 bg-slate-50/85 dark:text-slate-400 dark:bg-slate-800/85 px-1.5 py-0.5 rounded"
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,

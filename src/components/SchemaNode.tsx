@@ -33,23 +33,23 @@ function fieldBadgeStyle(type: DiscoveredField['type']): BadgeStyle {
     case 'string':
     case 'text':
     case 'slug':
-      return { className: 'bg-gray-100 text-gray-700 hover:bg-gray-100 border-gray-200', variant: 'secondary' };
+      return { className: 'bg-gray-100 text-gray-700 hover:bg-gray-100 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700', variant: 'secondary' };
     case 'number':
     case 'boolean':
-      return { className: 'bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200', variant: 'secondary' };
+      return { className: 'bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800', variant: 'secondary' };
     case 'datetime':
-      return { className: 'bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200', variant: 'secondary' };
+      return { className: 'bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:border-purple-800', variant: 'secondary' };
     case 'image':
-      return { className: 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200', variant: 'secondary' };
+      return { className: 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800', variant: 'secondary' };
     case 'reference':
-      return { className: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-indigo-200', variant: 'secondary' };
+      return { className: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-300 dark:border-indigo-800', variant: 'secondary' };
     case 'array':
-      return { className: 'bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200', variant: 'secondary' };
+      return { className: 'bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200 dark:bg-orange-900/50 dark:text-orange-300 dark:border-orange-800', variant: 'secondary' };
     case 'object':
     case 'block':
-      return { className: 'bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200', variant: 'secondary' };
+      return { className: 'bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800', variant: 'secondary' };
     case 'url':
-      return { className: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-100 border-cyan-200', variant: 'secondary' };
+      return { className: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-100 border-cyan-200 dark:bg-cyan-900/50 dark:text-cyan-300 dark:border-cyan-800', variant: 'secondary' };
     case 'unknown':
     default:
       return { className: 'text-gray-500 border-gray-300', variant: 'outline' };
@@ -81,12 +81,12 @@ function FieldRow({
       className={`
         relative flex items-center justify-between gap-2 px-3 py-1.5 text-xs
         ${even ? 'bg-transparent' : 'bg-muted/40'}
-        ${isRef ? 'bg-indigo-50/60' : ''}
+        ${isRef ? 'bg-indigo-50/60 dark:bg-indigo-950/20' : ''}
       `}
     >
       {/* Field name */}
       <span
-        className={`truncate font-mono ${isRef || isInline ? 'font-medium text-indigo-700' : 'text-card-foreground'}`}
+        className={`truncate font-mono ${isRef || isInline ? 'font-medium text-indigo-700 dark:text-indigo-300' : 'text-card-foreground'}`}
         title={field.name}
       >
         {field.name}
@@ -175,7 +175,7 @@ function SchemaNode({ data }: NodeProps<SchemaNodeType>) {
         </span>
         <Badge
           variant="secondary"
-          className="shrink-0 tabular-nums text-[10px] px-1.5 py-0 leading-4 bg-white text-black"
+          className="shrink-0 tabular-nums text-[10px] px-1.5 py-0 leading-4 bg-white text-black dark:bg-gray-800 dark:text-gray-200"
         >
           {documentCount.toLocaleString()}
         </Badge>

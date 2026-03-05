@@ -188,7 +188,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
             <span>·</span>
             <span>{formatNumber(totalDocuments)} {totalDocuments === 1 ? 'document' : 'documents'}</span>
             <span>·</span>
-            <span>v1.8</span>
+            <span>v1.9</span>
           </div>
         )}
       </div>
@@ -225,7 +225,7 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   {lockedProjects.length > 0 && (
                     <button
                       onClick={() => setShowLockedDialog(true)}
-                      className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="shrink-0 mt-[3px] px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       + {lockedProjects.length} with no access
                     </button>
@@ -261,8 +261,8 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                 variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
                 className={
                   selectedDataset.aclMode === 'public'
-                    ? 'bg-green-100 text-green-800 hover:bg-green-100 font-normal'
-                    : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal'
+                    ? 'bg-green-100 text-green-800 hover:bg-green-100 font-normal dark:bg-green-900/50 dark:text-green-300'
+                    : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300'
                 }
               >
                 {selectedDataset.aclMode}
@@ -272,8 +272,8 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
                   variant="default"
                   className={
                     (effectiveSource === 'deployed'
-                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal'
-                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal')
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal dark:bg-blue-900/50 dark:text-blue-300'
+                      : 'bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300')
                     + ' cursor-pointer select-none'
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
@@ -337,16 +337,16 @@ function OrgOverview({ projects, isLoading = false, orgId, orgName }: OrgOvervie
               <div className="space-y-4">
                 <div className="rounded-md border px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal"><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</Badge>
+                    <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal dark:bg-blue-900/50 dark:text-blue-300"><RiCheckFill className="inline-block mr-1 align-middle" />deployed schema</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     Read from the schema that your Sanity Studio has deployed to the Content Lake. This is the most accurate source — it reflects the exact document types, fields, and references defined in your Studio configuration. Deployed schema is available when a Studio has been deployed using <code className="text-xs bg-muted px-1 py-0.5 rounded">npx sanity deploy</code> or via CI/CD.
                   </p>
                 </div>
 
-                <div className="rounded-md border border-amber-200 bg-amber-50/50 px-4 py-3 space-y-2">
+                <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal"><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</Badge>
+                    <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300"><RiAlertFill className="inline-block mr-1 align-middle" />inferred schema</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     When no deployed schema is available, Schema Mapper infers the schema by sampling documents in the dataset. This is a best-effort approach with some limitations:

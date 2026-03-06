@@ -50,7 +50,7 @@ npx sanity projects get <projectId>
 
 In `<path>/sanity.cli.ts`: replace `YOUR_PROJECT_ID` with the chosen project ID, replace `YOUR_ORG_ID` with the org ID.
 
-In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID.
+In `<path>/src/App.tsx`: replace `YOUR_PROJECT_ID` with the chosen project ID, and replace `YOUR_ORG_ID` with the org ID.
 
 ### 6. Install dependencies
 
@@ -77,7 +77,7 @@ Look for the schema-mapper directory. Check `apps/schema-mapper` first, then ask
 These two files contain the user's project and org IDs (often with commented-out alternatives). Read and save the **exact lines** containing these IDs:
 
 - `<path>/sanity.cli.ts` — find the `organizationId:` line (e.g. `organizationId: 'abc123', // my org`)
-- `<path>/src/App.tsx` — find the `projectId:` line in the config array (e.g. `projectId: 'xyz789', // production`)
+- `<path>/src/App.tsx` — find the `organizationId` line AND the `projectId:` line in the config array
 
 Save the **complete lines** including any inline comments — the user may have other IDs commented alongside. You will reinstate these exact lines after the update.
 

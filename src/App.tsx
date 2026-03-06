@@ -10,6 +10,8 @@ import './styles/globals.css'
 
 const theme = buildTheme()
 
+const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organization ID (same as sanity.cli.ts)
+
 const config: SanityConfig[] = [
   {
     projectId: 'YOUR_PROJECT_ID', // TODO: Replace with your Sanity project ID
@@ -27,10 +29,8 @@ function LoadingScreen() {
 }
 
 function NotInDashboard() {
-  // Try to construct a direct dashboard link using the configured project ID
-  const projectId = config[0]?.projectId
-  const dashboardUrl = projectId && projectId !== 'YOUR_PROJECT_ID'
-    ? `https://www.sanity.io/manage/project/${projectId}`
+  const dashboardUrl = organizationId && organizationId !== 'YOUR_ORG_ID'
+    ? `https://www.sanity.io/@${organizationId}/application/__dev/`
     : 'https://www.sanity.io/manage'
 
   return (

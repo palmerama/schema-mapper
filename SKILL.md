@@ -42,8 +42,7 @@ Or check `package.json` for the `sanity` dependency version.
 Flag any issues:
 
 - **Below v3.88.0**: Deployed schema is not available. Schema Mapper will still work but will use **inferred schema** (sampling documents to guess the schema). Recommend upgrading to get accurate deployed schema support. The user can deploy their schema without redeploying their Studio by running `npx sanity schema deploy`.
-- **Below v2.28.0**: Dashboard may not work at all. Schema Mapper requires the Sanity Dashboard to run. Strongly recommend upgrading.
-- **v3.88.0+**: Full support — deployed schema and Dashboard both work.
+- **v3.88.0+**: Full support — deployed schema and Dashboard both work. Recommend `@latest` for best experience.
 
 ### 3. Choose install location
 

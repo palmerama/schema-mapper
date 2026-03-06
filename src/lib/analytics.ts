@@ -5,6 +5,7 @@ const POSTHOG_KEY = 'phc_UQUw6GbmTqkceM9jPWPQkLTMzeN4AzedDezSSeZRIxk'
 const POSTHOG_HOST = 'https://eu.i.posthog.com'
 
 let initialized = false
+let currentOrgId: string | null = null
 
 export function initAnalytics() {
   if (initialized) return
@@ -32,6 +33,11 @@ export function initAnalytics() {
 export function identifyOrg(orgId: string, orgName?: string) {
   if (!initialized) return
   try {
+    // If switching orgs, reset PostHog identity first
+    if (currentOrgId && currentOrgId !== orgId) {
+      posthog.reset()
+    }
+    currentOrgId = orgId
     posthog.identify(orgId, {
       org_name: orgName,
       app_version: pkg.version,

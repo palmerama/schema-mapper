@@ -47,6 +47,7 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   const handlePNG = useCallback(async () => {
     trackEvent('export_triggered', {
       format: 'png',
+      project_id: context.projectId,
       project_name: context.projectName,
       dataset_name: context.datasetName,
       type_count: context.typeCount,
@@ -81,6 +82,7 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   const handleSVG = useCallback(async () => {
     trackEvent('export_triggered', {
       format: 'svg',
+      project_id: context.projectId,
       project_name: context.projectName,
       dataset_name: context.datasetName,
       type_count: context.typeCount,
@@ -113,6 +115,7 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
   const handlePDF = useCallback(async () => {
     trackEvent('export_triggered', {
       format: 'pdf',
+      project_id: context.projectId,
       project_name: context.projectName,
       dataset_name: context.datasetName,
       type_count: context.typeCount,

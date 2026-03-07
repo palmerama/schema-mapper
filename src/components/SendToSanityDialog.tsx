@@ -167,8 +167,8 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
 
             {/* Privacy note */}
             <Text size={0} muted>
-              This sends your schema structure, document counts, and project details to Sanity. No
-              document content is shared. Please ensure you're comfortable sharing this information.
+              This sends your schema structure, document counts, and project details to Sanity. <strong className="font-semibold text-foreground">No
+              document content is shared.</strong> Please ensure you're comfortable sharing this information.
             </Text>
 
             {/* Error state */}

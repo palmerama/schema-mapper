@@ -83,7 +83,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
       <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
       <Dialog
         id="send-to-sanity-dialog"
-        header={<span className="text-lg font-normal">Share your schema with Sanity</span>}
+        header={<span className="text-xl font-normal">Share your schema with Sanity</span>}
         onClose={onClose}
         onClickOutside={handleClickOutside}
         open={open}

@@ -122,7 +122,7 @@ function EmptyState() {
     <Card className="border-dashed">
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-4xl mb-4">📭</div>
-        <h3 className="text-lg font-normal mb-2">No projects found</h3>
+        <h3 className="text-xl font-normal mb-2">No projects found</h3>
         <p className="text-sm text-muted-foreground max-w-md">
           Make sure you have access to projects in this organization. If you
           believe this is an error, check your permissions or try refreshing.
@@ -399,7 +399,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="schema-info-dialog"
-          header={<span className="text-lg font-normal">Schema sources</span>}
+          header={<span className="text-xl font-normal">Schema sources</span>}
           onClose={() => setShowSchemaInfoDialog(false)}
           onClickOutside={() => setShowSchemaInfoDialog(false)}
           width={1}
@@ -452,7 +452,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="acl-info-dialog"
-          header={<span className="text-lg font-normal">Dataset access mode</span>}
+          header={<span className="text-xl font-normal">Dataset access mode</span>}
           onClose={() => setShowAclDialog(false)}
           onClickOutside={() => setShowAclDialog(false)}
           width={1}
@@ -496,7 +496,7 @@ function OrgOverview({
         <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="locked-projects-dialog"
-          header={<span className="text-lg font-normal">Projects with no access</span>}
+          header={<span className="text-xl font-normal">Projects with no access</span>}
           onClose={() => setShowLockedDialog(false)}
           onClickOutside={() => setShowLockedDialog(false)}
           width={1}

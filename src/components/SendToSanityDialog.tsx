@@ -80,6 +80,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
 
   return (
     <>
+      <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
       <Dialog
         id="send-to-sanity-dialog"
         header="Share your schema with Sanity"

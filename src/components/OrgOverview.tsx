@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -189,7 +189,7 @@ function OrgOverview({
           <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300">Enterprise</span>}<span>·</span></>}
+          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300"><GoStarFill />Enterprise</span>}<span>·</span></>}
           <span>
             {formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}
             {isCheckingAccess && '…'}

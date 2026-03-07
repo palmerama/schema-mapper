@@ -4,6 +4,8 @@ import { GrDownload } from 'react-icons/gr'
 import { GoStarFill } from 'react-icons/go'
 import { version as appVersion } from '../../package.json'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
+
+const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'
 import type { DiscoveredType } from './types'
 import {trackEvent} from '../lib/analytics'
 
@@ -375,6 +377,72 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     }
   }, [types, context, graphRef])
 
+  const handleSendToSanity = useCallback(async () => {
+    trackEvent('export_triggered', {
+      format: 'send_to_sanity',
+      project_id: context.projectId,
+      project_name: context.projectName,
+      dataset_name: context.datasetName,
+      type_count: context.typeCount,
+    })
+    setExporting('send')
+    try {
+      // Gather display settings
+      const displaySettings: Record<string, unknown> = {}
+      try {
+        const layout = localStorage.getItem('schema-mapper:layoutType')
+        if (layout) displaySettings.layout = layout
+        const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
+        if (edgeStyle) displaySettings.edgeStyle = edgeStyle
+        const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
+        if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
+      } catch {}
+
+      const payload = {
+        version: 1,
+        appVersion,
+        exportedAt: new Date().toISOString(),
+        org: context.orgId ? { id: context.orgId, name: context.orgName, isEnterprise: true } : undefined,
+        project: { id: context.projectId, name: context.projectName },
+        dataset: {
+          name: context.datasetName,
+          aclMode: context.aclMode,
+          totalDocuments: context.totalDocuments,
+          schemaSource: context.schemaSource,
+        },
+        types: (types || []).map(t => ({
+          name: t.name,
+          documentCount: t.documentCount,
+          fields: t.fields.map(f => ({
+            name: f.name,
+            type: f.type,
+            ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
+            ...(f.isArray ? { isArray: true } : {}),
+            ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
+          })),
+        })),
+        displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+      }
+
+      const res = await fetch(`${WORKER_URL}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        console.error('Send to Sanity failed:', data)
+        return
+      }
+    } catch (err) {
+      console.error('Send to Sanity error:', err)
+    } finally {
+      setExporting(null)
+      setOpen(false)
+    }
+  }, [types, context, appVersion])
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -421,10 +489,11 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
               <div className="my-1 border-t border-gray-100" />
               <div className="px-2 py-1.5">
                 <button
-                  onClick={() => { setOpen(false) }}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                  onClick={handleSendToSanity}
+                  disabled={!!exporting}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
                 >
-                  <GoStarFill /> Send to Sanity →
+                  <GoStarFill /> {exporting === 'send' ? 'Sending…' : 'Send to Sanity →'}
                 </button>
               </div>
             </>

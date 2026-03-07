@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, createElement } from 'react'
 import { toPng, toSvg } from 'html-to-image'
-import { GoDownload } from 'react-icons/go'
+import { GrDownload } from 'react-icons/gr'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 import {trackEvent} from '../lib/analytics'
 
@@ -285,9 +285,9 @@ export function ExportDropdown({ graphRef, context }: ExportDropdownProps) {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors"
       >
-        <GoDownload className="text-sm" />
+        <GrDownload />
         Export
       </button>
       {open && (

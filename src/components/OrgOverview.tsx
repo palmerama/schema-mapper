@@ -163,6 +163,29 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
 
+  // Click outside to close dialogs
+  useEffect(() => {
+    const anyOpen = showLockedDialog || showSchemaInfoDialog || showAclDialog
+    if (!anyOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const dialogEl = document.querySelector('[data-ui="Dialog"]')
+      const cardEl = dialogEl?.querySelector('[data-ui="DialogCard"]') || dialogEl?.querySelector('[data-ui="Card"]')
+      if (dialogEl && cardEl && !cardEl.contains(target)) {
+        setShowLockedDialog(false)
+        setShowSchemaInfoDialog(false)
+        setShowAclDialog(false)
+      }
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 100)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handler)
+    }
+  }, [showLockedDialog, showSchemaInfoDialog, showAclDialog])
+
   // ---- Derived state ----
   const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null
   const selectedDataset = datasets.find(d => d.name === selectedDatasetName) ?? null
@@ -393,7 +416,7 @@ function OrgOverview({
       {/* ---- Schema Info Dialog ---- */}
       {showSchemaInfoDialog && (
         <>
-        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowSchemaInfoDialog(false)} />
+
         <Dialog
           id="schema-info-dialog"
           header="Schema sources"
@@ -444,7 +467,7 @@ function OrgOverview({
       {/* ---- ACL Mode Info Dialog ---- */}
       {showAclDialog && (
         <>
-        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowAclDialog(false)} />
+
         <Dialog
           id="acl-info-dialog"
           header="Dataset access mode"
@@ -486,7 +509,7 @@ function OrgOverview({
       {/* ---- Locked Projects Dialog ---- */}
       {showLockedDialog && (
         <>
-        <div className="fixed inset-0 z-[200] backdrop-blur-[2px] bg-black/20" onClick={() => setShowLockedDialog(false)} />
+
         <Dialog
           id="locked-projects-dialog"
           header="Projects with no access"

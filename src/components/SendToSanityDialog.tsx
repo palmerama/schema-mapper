@@ -74,25 +74,37 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         ? 'Inferred from content'
         : 'Unknown'
 
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    // Only close if clicking the backdrop itself, not the dialog card
-    if (e.target === e.currentTarget && state !== 'sending') {
-      onClose()
+  // Close on click outside the dialog card
+  useEffect(() => {
+    if (!open || state === 'sending') return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // Sanity UI Dialog renders a [data-ui="Dialog"] with a card inside
+      // If click is on the dialog overlay (not the card), close
+      const dialogEl = document.querySelector('[data-ui="Dialog"]')
+      const cardEl = dialogEl?.querySelector('[data-ui="DialogCard"]') || dialogEl?.querySelector('[data-ui="Card"]')
+      if (dialogEl && cardEl && !cardEl.contains(target)) {
+        onClose()
+      }
     }
-  }, [onClose, state])
+    // Use timeout to avoid closing immediately from the button click that opened it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+    }, 100)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handler)
+    }
+  }, [open, state, onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-[2px] bg-black/20"
-      onClick={handleBackdropClick}
-    >
+    <>
       <Dialog
         id="send-to-sanity-dialog"
         header="Share your schema with Sanity"
         onClose={onClose}
         open={open}
         width={1}
-        zOffset={201}
       >
       <Box padding={4}>
         {state === 'success' ? (
@@ -230,6 +242,6 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
         )}
       </Box>
     </Dialog>
-    </div>
+    </>
   )
 }

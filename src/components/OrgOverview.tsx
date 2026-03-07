@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SchemaGraph } from './SchemaGraph'
 import { ExportDropdown } from './ExportDropdown'
+import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo } from './types'
 
 // ---------------------------------------------------------------------------
@@ -151,6 +152,9 @@ function OrgOverview({
   onProjectSelect,
   onDatasetSelect,
 }: OrgOverviewProps) {
+  // ---- Enterprise check ----
+  const { isEnterprise } = useEnterpriseCheck(orgId)
+
   // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)
 
@@ -185,7 +189,7 @@ function OrgOverview({
           <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
+          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:text-purple-300">Enterprise</span>}<span>·</span></>}
           <span>
             {formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}
             {isCheckingAccess && '…'}

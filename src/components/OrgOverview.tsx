@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SchemaGraph } from './SchemaGraph'
 import { ExportDropdown } from './ExportDropdown'
+import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo } from './types'
 
 // ---------------------------------------------------------------------------
@@ -121,7 +122,7 @@ function EmptyState() {
     <Card className="border-dashed">
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-4xl mb-4">📭</div>
-        <h3 className="text-lg font-normal mb-2">No projects found</h3>
+        <h3 className="text-xl font-normal mb-2">No projects found</h3>
         <p className="text-sm text-muted-foreground max-w-md">
           Make sure you have access to projects in this organization. If you
           believe this is an error, check your permissions or try refreshing.
@@ -151,6 +152,9 @@ function OrgOverview({
   onProjectSelect,
   onDatasetSelect,
 }: OrgOverviewProps) {
+  // ---- Enterprise check ----
+  const { isEnterprise } = useEnterpriseCheck(orgId)
+
   // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)
 
@@ -158,6 +162,8 @@ function OrgOverview({
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
+
+
 
   // ---- Derived state ----
   const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null
@@ -185,7 +191,7 @@ function OrgOverview({
           <h1 className="text-2xl font-normal tracking-tight flex items-center gap-2"><FcFlowChart className="text-3xl" /> Schema Mapper</h1>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          {orgName && <><span className="text-foreground">{orgName}</span><span>·</span></>}
+          {orgName && <><span className="text-foreground">{orgName}</span>{isEnterprise && <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 dark:bg-purple-900/40 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300"><GoStarFill />Enterprise</span>}<span>·</span></>}
           <span>
             {formatNumber(totalProjects)} {totalProjects === 1 ? 'project' : 'projects'}
             {isCheckingAccess && '…'}
@@ -308,7 +314,7 @@ function OrgOverview({
           {selectedDataset && !isSchemasLoading && (
             <div className="flex items-center gap-2 mt-3 py-2 text-sm">
               <GoDatabase className="text-base" />
-              <span className="font-normal">{selectedDataset.name}</span>
+              <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
               <Badge
                 variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
                 className={
@@ -345,6 +351,8 @@ function OrgOverview({
                   <span className="flex-1" />
                   <ExportDropdown
                     graphRef={graphRef}
+                    isEnterprise={isEnterprise}
+                    types={effectiveTypes}
                     context={{
                       projectName: selectedProject.displayName,
                       projectId: selectedProject.id,
@@ -387,11 +395,13 @@ function OrgOverview({
       {/* ---- Schema Info Dialog ---- */}
       {showSchemaInfoDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowSchemaInfoDialog(false)} />
+
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="schema-info-dialog"
-          header="Schema sources"
+          header={<span className="text-xl font-normal">Schema sources</span>}
           onClose={() => setShowSchemaInfoDialog(false)}
+          onClickOutside={() => setShowSchemaInfoDialog(false)}
           width={1}
           animate
         >
@@ -438,11 +448,13 @@ function OrgOverview({
       {/* ---- ACL Mode Info Dialog ---- */}
       {showAclDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowAclDialog(false)} />
+
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="acl-info-dialog"
-          header="Dataset access mode"
+          header={<span className="text-xl font-normal">Dataset access mode</span>}
           onClose={() => setShowAclDialog(false)}
+          onClickOutside={() => setShowAclDialog(false)}
           width={1}
           animate
         >
@@ -480,11 +492,13 @@ function OrgOverview({
       {/* ---- Locked Projects Dialog ---- */}
       {showLockedDialog && (
         <>
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" onClick={() => setShowLockedDialog(false)} />
+
+        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
         <Dialog
           id="locked-projects-dialog"
-          header="Projects with no access"
+          header={<span className="text-xl font-normal">Projects with no access</span>}
           onClose={() => setShowLockedDialog(false)}
+          onClickOutside={() => setShowLockedDialog(false)}
           width={1}
           animate
         >

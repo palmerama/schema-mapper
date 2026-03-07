@@ -192,7 +192,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
               {state === 'error' ? (
                 <button
                   onClick={handleSend}
-                  className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
                   <GoStarFill size={14} />
                   Try Again
@@ -201,11 +201,11 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
                 <button
                   onClick={handleSend}
                   disabled={state === 'sending'}
-                  className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {state === 'sending' ? (
                     <>
-                      <Spinner size={1} />
+                      <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       Sending…
                     </>
                   ) : (

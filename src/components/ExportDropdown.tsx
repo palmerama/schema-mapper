@@ -337,7 +337,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
       const payload = {
         version: 1,
         exportedAt: new Date().toISOString(),
-        org: context.orgId ? { id: context.orgId, name: context.orgName } : undefined,
+        org: context.orgId ? { id: context.orgId, name: context.orgName, isEnterprise: !!isEnterprise } : undefined,
         project: { id: context.projectId, name: context.projectName },
         dataset: {
           name: context.datasetName,

@@ -1,27 +1,14 @@
-export type DiscoveredField = {
-  name: string
-  type: 'string' | 'number' | 'boolean' | 'text' | 'url' | 'datetime' | 'image' | 'reference' | 'array' | 'object' | 'block' | 'slug' | 'unknown'
-  isReference?: boolean
-  referenceTo?: string
-  isArray?: boolean
-  isInlineObject?: boolean
-}
-
-export type DiscoveredType = {
-  name: string
-  documentCount: number
-  fields: DiscoveredField[]
-}
+export type { DiscoveredField, DiscoveredType } from '@sanity-labs/schema-mapper-core'
 
 export type DatasetInfo = {
   name: string
   aclMode: 'public' | 'private'
   totalDocuments: number
-  types: DiscoveredType[]
+  types: import('@sanity-labs/schema-mapper-core').DiscoveredType[]
   schemaSource?: 'deployed' | 'inferred'
   hasDeployedSchema?: boolean
-  deployedTypes?: DiscoveredType[] | null
-  inferredTypes?: DiscoveredType[] | null
+  deployedTypes?: import('@sanity-labs/schema-mapper-core').DiscoveredType[] | null
+  inferredTypes?: import('@sanity-labs/schema-mapper-core').DiscoveredType[] | null
 }
 
 export type ProjectInfo = {

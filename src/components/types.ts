@@ -13,6 +13,13 @@ export type DiscoveredType = {
   fields: DiscoveredField[]
 }
 
+export type DeployedSchemaEntry = {
+  id: string           // _id from API
+  name: string         // workspace.title || workspace.name
+  workspace: string    // workspace.name
+  types: DiscoveredType[]
+}
+
 export type DatasetInfo = {
   name: string
   aclMode: 'public' | 'private'
@@ -22,6 +29,7 @@ export type DatasetInfo = {
   hasDeployedSchema?: boolean
   deployedTypes?: DiscoveredType[] | null
   inferredTypes?: DiscoveredType[] | null
+  deployedSchemas?: DeployedSchemaEntry[]
 }
 
 export type ProjectInfo = {
@@ -32,3 +40,4 @@ export type ProjectInfo = {
   isProjectLoading?: boolean
   datasets: DatasetInfo[]
 }
+

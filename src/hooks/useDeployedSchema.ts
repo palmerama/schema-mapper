@@ -1,6 +1,6 @@
 import {useClient} from '@sanity/sdk-react'
 import {useState, useEffect, useRef} from 'react'
-import type {DiscoveredType, DiscoveredField} from '../types'
+import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry} from '../types'
 
 // --- GROQ Type Schema API response types ---
 
@@ -376,19 +376,43 @@ function parseDeployedSchema(
   })
 }
 
+// --- Extract schema data from a raw API entry ---
+
+function extractSchemaData(entry: any): any[] {
+  const raw = entry.schema
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      console.warn('[Schema Mapper] Failed to parse schema JSON string')
+      return []
+    }
+  } else if (Array.isArray(raw)) {
+    return raw
+  } else if (raw && typeof raw === 'object') {
+    // Could be wrapped in another structure
+    return raw.types || raw
+  }
+  return []
+}
+
 // --- Hook ---
 
 /**
  * Hook to fetch schema from Sanity's deployed schema API.
  * Returns parsed DiscoveredType[] with document counts.
  * Returns empty types array if no deployed schema is available (caller should fallback).
+ *
+ * Now also returns all workspace schemas as DeployedSchemaEntry[].
  */
 export function useDeployedSchema(): {
+  schemas: DeployedSchemaEntry[]
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
   hasDeployedSchema: boolean
 } {
+  const [schemas, setSchemas] = useState<DeployedSchemaEntry[]>([])
   const [types, setTypes] = useState<DiscoveredType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -414,51 +438,36 @@ export function useDeployedSchema(): {
         // Fetch the deployed schema from the API
         // API returns an array of workspace schema documents
         // Each has { _id, schema, workspace, ... } where schema contains the GROQ type schema
-        const schemas: any[] = await clientRef.current.request({
+        const rawSchemas: any[] = await clientRef.current.request({
           method: 'GET',
           uri: `/projects/${projectId}/datasets/${dataset}/schemas`,
         })
 
         if (cancelled) return
 
-        // Extract the schema content from the first workspace entry
-        if (!schemas || schemas.length === 0) {
+        if (!rawSchemas || rawSchemas.length === 0) {
           setHasDeployedSchema(false)
+          setSchemas([])
           setTypes([])
           setIsLoading(false)
           return
         }
 
-        const entry = schemas[0]
-        let schemaData: SchemaEntry[] = []
+        // Parse ALL workspace entries
+        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]}[] = []
 
-        const raw = entry.schema
-        if (typeof raw === 'string') {
-          try {
-            schemaData = JSON.parse(raw)
-          } catch {
-            console.warn('[Schema Mapper] Failed to parse schema JSON string')
+        for (const entry of rawSchemas) {
+          const schemaData = extractSchemaData(entry)
+          if (!Array.isArray(schemaData) || schemaData.length === 0) continue
+          const parsed = parseDeployedSchema(schemaData)
+          if (parsed.length > 0) {
+            parsedEntries.push({entry, parsedTypes: parsed})
           }
-        } else if (Array.isArray(raw)) {
-          schemaData = raw
-        } else if (raw && typeof raw === 'object') {
-          // Could be wrapped in another structure
-          schemaData = raw.types || raw
         }
 
-        if (!Array.isArray(schemaData) || schemaData.length === 0) {
+        if (parsedEntries.length === 0) {
           setHasDeployedSchema(false)
-          setTypes([])
-          setIsLoading(false)
-          return
-        }
-
-        // Parse the schema
-        const parsedTypes = parseDeployedSchema(schemaData)
-
-        if (parsedTypes.length === 0) {
-          // No deployed schema available
-          setHasDeployedSchema(false)
+          setSchemas([])
           setTypes([])
           setIsLoading(false)
           return
@@ -466,36 +475,60 @@ export function useDeployedSchema(): {
 
         setHasDeployedSchema(true)
 
-        // Fetch document counts in parallel for all types
-        const typesWithCounts = await Promise.all(
-          parsedTypes.map(async (docType) => {
+        // Fetch document counts once (shared across all workspace schemas — same dataset)
+        // Collect all unique type names across all workspace schemas
+        const allTypeNames = new Set<string>()
+        for (const {parsedTypes} of parsedEntries) {
+          for (const t of parsedTypes) {
+            allTypeNames.add(t.name)
+          }
+        }
+
+        // Fetch counts for all unique types
+        const countMap = new Map<string, number>()
+        await Promise.all(
+          Array.from(allTypeNames).map(async (typeName) => {
             try {
               const count: number = await countClientRef.current.fetch(
                 `count(*[_type == $type])`,
-                {type: docType.name},
+                {type: typeName},
               )
-              return {
-                ...docType,
-                documentCount: count,
-              }
+              countMap.set(typeName, count)
             } catch {
-              return {
-                ...docType,
-                documentCount: 0,
-              }
+              countMap.set(typeName, 0)
             }
           }),
         )
 
         if (cancelled) return
 
-        setTypes(typesWithCounts)
+        // Build DeployedSchemaEntry for each workspace
+        const deployedSchemaEntries: DeployedSchemaEntry[] = parsedEntries.map(({entry, parsedTypes}) => {
+          const typesWithCounts: DiscoveredType[] = parsedTypes.map((t) => ({
+            ...t,
+            documentCount: countMap.get(t.name) ?? 0,
+          }))
+
+          return {
+            id: entry._id,
+            name: entry.workspace?.title || entry.workspace?.name || 'Default',
+            workspace: entry.workspace?.name || 'default',
+            types: typesWithCounts,
+          }
+        })
+
+        if (cancelled) return
+
+        setSchemas(deployedSchemaEntries)
+        // Backward compat: types = first schema's types
+        setTypes(deployedSchemaEntries[0]?.types ?? [])
         setError(null)
       } catch (err) {
         if (!cancelled) {
           // Schema API failed — signal no deployed schema so caller can fallback
           console.warn('[Schema Mapper] Deployed schema API error:', err)
           setHasDeployedSchema(false)
+          setSchemas([])
           setTypes([])
           setError(null) // Don't propagate — let fallback handle it
         }
@@ -512,5 +545,6 @@ export function useDeployedSchema(): {
     }
   }, [projectId, dataset])
 
-  return {types, isLoading, error, hasDeployedSchema}
+  return {schemas, types, isLoading, error, hasDeployedSchema}
 }
+

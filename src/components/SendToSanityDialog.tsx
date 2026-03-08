@@ -13,6 +13,7 @@ interface SendToSanityDialogProps {
     typeCount: number
     totalDocuments: number
     schemaSource: 'deployed' | 'inferred' | null
+    workspaceName?: string
   }
 }
 
@@ -167,6 +168,16 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
                     {schemaSourceLabel}
                   </Text>
                 </Flex>
+                {context.workspaceName && context.workspaceName !== 'default' && (
+                  <Flex gap={2} align="center">
+                    <Text size={1} muted>
+                      Workspace:
+                    </Text>
+                    <Text size={1} weight="medium">
+                      {context.workspaceName}
+                    </Text>
+                  </Flex>
+                )}
               </Stack>
             </div>
 

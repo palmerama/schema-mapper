@@ -20,6 +20,7 @@ export interface ExportContext {
   schemaSource: 'deployed' | 'inferred' | null
   orgId?: string
   orgName?: string
+  workspaceName?: string
 }
 
 interface ExportDropdownProps {
@@ -351,6 +352,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
           totalDocuments: context.totalDocuments,
           schemaSource: context.schemaSource,
         },
+        workspace: context.workspaceName && context.workspaceName !== 'default' ? context.workspaceName : undefined,
         types: (types || []).map(t => ({
           name: t.name,
           documentCount: t.documentCount,
@@ -431,6 +433,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
           totalDocuments: context.totalDocuments,
           schemaSource: context.schemaSource,
         },
+        workspace: context.workspaceName && context.workspaceName !== 'default' ? context.workspaceName : undefined,
         types: (types || []).map(t => ({
           name: t.name,
           documentCount: t.documentCount,
@@ -532,6 +535,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         typeCount: context.typeCount,
         totalDocuments: context.totalDocuments,
         schemaSource: context.schemaSource,
+        workspaceName: context.workspaceName,
       }}
     />}
     </>

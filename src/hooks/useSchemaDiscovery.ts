@@ -1,6 +1,6 @@
 import {useClient} from '@sanity/sdk-react'
 import {useState, useEffect, useRef} from 'react'
-import type {DiscoveredType, DiscoveredField} from '../types'
+import type {DiscoveredType, DiscoveredField, DeployedSchemaEntry} from '../types'
 import {useDeployedSchema} from './useDeployedSchema'
 
 // ============================================================================
@@ -239,6 +239,7 @@ export function useSchemaDiscovery(): {
   hasDeployedSchema: boolean
   deployedTypes: DiscoveredType[] | null   // null = not available
   inferredTypes: DiscoveredType[] | null   // null = still loading
+  deployedSchemas: DeployedSchemaEntry[]   // ALL parsed workspace schemas
 } {
   const deployed = useDeployedSchema()
 
@@ -258,6 +259,7 @@ export function useSchemaDiscovery(): {
       hasDeployedSchema: false,
       deployedTypes: null,
       inferredTypes: null,
+      deployedSchemas: [],
     }
   }
 
@@ -271,6 +273,7 @@ export function useSchemaDiscovery(): {
       hasDeployedSchema: true,
       deployedTypes,
       inferredTypes,
+      deployedSchemas: deployed.schemas,
     }
   }
 
@@ -283,5 +286,7 @@ export function useSchemaDiscovery(): {
     hasDeployedSchema: false,
     deployedTypes: null,
     inferredTypes,
+    deployedSchemas: [],
   }
 }
+

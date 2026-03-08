@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SchemaGraph } from './SchemaGraph'
 import { ExportDropdown } from './ExportDropdown'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
-import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo } from './types'
+import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -103,6 +103,10 @@ interface OrgOverviewProps {
   // Callbacks — these trigger lazy loading in parent
   onProjectSelect: (projectId: string) => void
   onDatasetSelect: (datasetName: string) => void
+  // Multi-schema (workspace) support
+  deployedSchemas?: DeployedSchemaEntry[]
+  selectedSchemaId?: string | null
+  onSchemaSelect?: (schemaId: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +155,9 @@ function OrgOverview({
   isSchemasLoading,
   onProjectSelect,
   onDatasetSelect,
+  deployedSchemas,
+  selectedSchemaId,
+  onSchemaSelect,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -182,6 +189,9 @@ function OrgOverview({
 
   // Whether we have any data to show at all (not in initial loading with zero projects)
   const hasNoProjects = !isCheckingAccess && projects.length === 0 && lockedProjects.length === 0
+
+  // Multi-schema: show schema row only when there are multiple deployed schemas
+  const showSchemaRow = deployedSchemas && deployedSchemas.length > 1
 
   return (
     <div className="flex flex-col h-screen px-6">
@@ -306,6 +316,25 @@ function OrgOverview({
                 ) : (
                   <span className="text-sm text-muted-foreground pt-[3px]">No datasets found</span>
                 )}
+              </>
+            )}
+
+            {/* ---- Schema (Workspace) Tabs ---- */}
+            {showSchemaRow && (
+              <>
+                <span className="text-sm font-normal text-muted-foreground pt-[3px]">Schema:</span>
+                <TabList space={1}>
+                  {deployedSchemas!.map(schema => (
+                    <Tab
+                      key={schema.id}
+                      aria-controls={`schema-panel-${schema.id}`}
+                      id={`schema-tab-${schema.id}`}
+                      label={schema.name}
+                      selected={selectedSchemaId === schema.id}
+                      onClick={() => onSchemaSelect?.(schema.id)}
+                    />
+                  ))}
+                </TabList>
               </>
             )}
           </div>
@@ -528,3 +557,4 @@ function OrgOverview({
 }
 
 export default OrgOverview
+

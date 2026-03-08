@@ -16,7 +16,7 @@ import {
 import OrgOverview from './OrgOverview'
 import {useSchemaDiscovery} from '../hooks/useSchemaDiscovery'
 import useProjectAccess from '../hooks/useProjectAccess'
-import type {ProjectInfo, DatasetInfo, DiscoveredType} from '../types'
+import type {ProjectInfo, DatasetInfo, DiscoveredType, DeployedSchemaEntry} from '../types'
 import {identifyOrg, trackEvent} from '../lib/analytics'
 
 // ---------------------------------------------------------------------------
@@ -87,6 +87,9 @@ interface State {
   schemas: Map<string, DiscoveredType[]>
   schemasLoading: Set<string> // "projectId::dataset" keys currently loading
   schemaSource: Map<string, 'deployed' | 'inferred'>
+  // Deployed schemas per "projectId::dataset" — all workspace entries
+  deployedSchemas: Map<string, DeployedSchemaEntry[]>
+  selectedSchemaId: string | null
   // Errors keyed by projectId or "projectId::dataset"
   errors: Map<string, string>
   // Selection
@@ -99,10 +102,11 @@ type Action =
   | {type: 'DATASETS_LOADING'; projectId: string}
   | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
   | {type: 'SCHEMA_LOADING'; key: string}
-  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'}
+  | {type: 'SCHEMA_LOADED'; key: string; types: DiscoveredType[]; source: 'deployed' | 'inferred'; deployedSchemas?: DeployedSchemaEntry[]}
   | {type: 'ERROR'; key: string; error: string}
   | {type: 'SELECT_PROJECT'; projectId: string}
   | {type: 'SELECT_DATASET'; datasetName: string}
+  | {type: 'SELECT_SCHEMA'; schemaId: string}
   | {type: 'PHASE_READY'}
 
 const initialState: State = {
@@ -113,6 +117,8 @@ const initialState: State = {
   schemas: new Map(),
   schemasLoading: new Set(),
   schemaSource: new Map(),
+  deployedSchemas: new Map(),
+  selectedSchemaId: null,
   errors: new Map(),
   selectedProjectId: null,
   selectedDatasetName: null,
@@ -156,7 +162,18 @@ function reducer(state: State, action: Action): State {
       nextSource.set(action.key, action.source)
       const nextLoading = new Set(state.schemasLoading)
       nextLoading.delete(action.key)
-      return {...state, schemas: nextSchemas, schemaSource: nextSource, schemasLoading: nextLoading}
+      // Store deployed schemas if provided
+      const nextDeployedSchemas = new Map(state.deployedSchemas)
+      if (action.deployedSchemas && action.deployedSchemas.length > 0) {
+        nextDeployedSchemas.set(action.key, action.deployedSchemas)
+      }
+      return {
+        ...state,
+        schemas: nextSchemas,
+        schemaSource: nextSource,
+        schemasLoading: nextLoading,
+        deployedSchemas: nextDeployedSchemas,
+      }
     }
 
     case 'ERROR': {
@@ -175,10 +192,34 @@ function reducer(state: State, action: Action): State {
         ...state,
         selectedProjectId: action.projectId,
         selectedDatasetName: null, // reset dataset selection when project changes
+        selectedSchemaId: null,    // reset schema selection when project changes
       }
 
     case 'SELECT_DATASET':
-      return {...state, selectedDatasetName: action.datasetName}
+      return {
+        ...state,
+        selectedDatasetName: action.datasetName,
+        selectedSchemaId: null,    // reset schema selection when dataset changes
+      }
+
+    case 'SELECT_SCHEMA': {
+      // Find the deployed schema entry and update the active types
+      const currentKey = state.selectedProjectId && state.selectedDatasetName
+        ? `${state.selectedProjectId}::${state.selectedDatasetName}`
+        : null
+      if (!currentKey) return {...state, selectedSchemaId: action.schemaId}
+
+      const entries = state.deployedSchemas.get(currentKey)
+      if (!entries) return {...state, selectedSchemaId: action.schemaId}
+
+      const selected = entries.find(e => e.id === action.schemaId)
+      if (!selected) return {...state, selectedSchemaId: action.schemaId}
+
+      // Update the schemas map with the selected schema's types
+      const nextSchemas = new Map(state.schemas)
+      nextSchemas.set(currentKey, selected.types)
+      return {...state, selectedSchemaId: action.schemaId, schemas: nextSchemas}
+    }
 
     default:
       return state
@@ -229,10 +270,11 @@ function ActiveSchemaDiscovery({
     key: string,
     types: DiscoveredType[],
     source: 'deployed' | 'inferred',
+    deployedSchemas: DeployedSchemaEntry[],
   ) => void
   onError: (key: string, error: string) => void
 }) {
-  const {types, isLoading, error, schemaSource} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource, deployedSchemas} = useSchemaDiscovery()
   const reportedRef = useRef(false)
   const key = `${projectId}::${datasetName}`
 
@@ -247,10 +289,10 @@ function ActiveSchemaDiscovery({
       if (error) {
         onError(key, error.message || 'Schema discovery failed')
       } else {
-        onDiscovered(key, types, schemaSource ?? 'inferred')
+        onDiscovered(key, types, schemaSource ?? 'inferred', deployedSchemas)
       }
     }
-  }, [isLoading, types, error, schemaSource, key, onDiscovered, onError])
+  }, [isLoading, types, error, schemaSource, deployedSchemas, key, onDiscovered, onError])
 
   return null
 }
@@ -437,8 +479,8 @@ function LiveOrgOverviewInner() {
   }, [state.selectedProjectId, state.selectedDatasetName, state.datasets, state.datasetsLoading, state.schemas, state.schemasLoading])
 
   const handleSchemaDiscovered = useCallback(
-    (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred') => {
-      dispatch({type: 'SCHEMA_LOADED', key, types, source})
+    (key: string, types: DiscoveredType[], source: 'deployed' | 'inferred', deployedSchemas: DeployedSchemaEntry[]) => {
+      dispatch({type: 'SCHEMA_LOADED', key, types, source, deployedSchemas})
 
       // Track schema discovery completion
       const [projectId, datasetName] = key.split('::')
@@ -461,6 +503,10 @@ function LiveOrgOverviewInner() {
 
   const handleSchemaError = useCallback((key: string, error: string) => {
     dispatch({type: 'ERROR', key, error})
+  }, [])
+
+  const handleSchemaSelect = useCallback((schemaId: string) => {
+    dispatch({type: 'SELECT_SCHEMA', schemaId})
   }, [])
 
   // -----------------------------------------------------------------------
@@ -550,6 +596,11 @@ function LiveOrgOverviewInner() {
       return { ...ds, types: cachedTypes, totalDocuments, schemaSource: source }
     })
   }, [state.selectedProjectId, state.datasets, state.schemas, state.schemaSource])
+
+  // Derive deployed schemas for the current dataset
+  const currentDeployedSchemas = selectedSchemaKey
+    ? state.deployedSchemas.get(selectedSchemaKey) || []
+    : []
 
   const isCheckingAccess = state.phase === 'checking_access'
 
@@ -653,6 +704,9 @@ function LiveOrgOverviewInner() {
         isSchemasLoading={isSchemasLoading}
         onProjectSelect={handleProjectSelect}
         onDatasetSelect={handleDatasetSelect}
+        deployedSchemas={currentDeployedSchemas}
+        selectedSchemaId={state.selectedSchemaId}
+        onSchemaSelect={handleSchemaSelect}
       />
     </>
   )
@@ -699,3 +753,4 @@ export function LiveOrgOverview() {
 }
 
 export default LiveOrgOverview
+

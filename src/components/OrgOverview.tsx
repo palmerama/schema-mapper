@@ -192,6 +192,9 @@ function OrgOverview({
 
   // Multi-schema: show schema row only when there are multiple deployed schemas
   const showSchemaRow = deployedSchemas && deployedSchemas.length > 1
+  const selectedWorkspaceName = showSchemaRow && selectedSchemaId
+    ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
+    : undefined
 
   return (
     <div className="flex flex-col h-screen px-6">
@@ -392,6 +395,7 @@ function OrgOverview({
                       schemaSource: effectiveSource,
                       orgId: orgId,
                       orgName: orgName,
+                      workspaceName: selectedWorkspaceName,
                     }}
                   />
                 </>

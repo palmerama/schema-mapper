@@ -162,10 +162,16 @@ function reducer(state: State, action: Action): State {
       nextSource.set(action.key, action.source)
       const nextLoading = new Set(state.schemasLoading)
       nextLoading.delete(action.key)
-      // Store deployed schemas if provided
+      // Store deployed schemas if provided, auto-select default or first
       const nextDeployedSchemas = new Map(state.deployedSchemas)
+      let nextSelectedSchemaId = state.selectedSchemaId
       if (action.deployedSchemas && action.deployedSchemas.length > 0) {
         nextDeployedSchemas.set(action.key, action.deployedSchemas)
+        // Auto-select when this is the active dataset and multiple schemas exist
+        if (action.deployedSchemas.length > 1 && action.key === `${state.selectedProjectId}::${state.selectedDatasetName}`) {
+          const defaultSchema = action.deployedSchemas.find(s => s.workspace === 'default')
+          nextSelectedSchemaId = defaultSchema ? defaultSchema.id : action.deployedSchemas[0].id
+        }
       }
       return {
         ...state,
@@ -173,6 +179,7 @@ function reducer(state: State, action: Action): State {
         schemaSource: nextSource,
         schemasLoading: nextLoading,
         deployedSchemas: nextDeployedSchemas,
+        selectedSchemaId: nextSelectedSchemaId,
       }
     }
 
@@ -496,6 +503,8 @@ function LiveOrgOverviewInner() {
         document_count: totalDocuments,
         schema_source: source,
         reference_count: referenceCount,
+        workspace_count: deployedSchemas.length > 0 ? deployedSchemas.length : undefined,
+        workspace_names: deployedSchemas.length > 1 ? deployedSchemas.map(s => s.name).join(', ') : undefined,
       })
     },
     [orgId],

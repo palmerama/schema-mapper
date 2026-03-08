@@ -55,6 +55,7 @@ export interface PDFExportProps {
     schemaSource: 'deployed' | 'inferred' | null
     orgId?: string
     orgName?: string
+    workspaceName?: string
   }
 }
 
@@ -505,6 +506,14 @@ export function SchemaGraphPDF({ nodes, edges, context }: PDFExportProps) {
                 {context.datasetName} ({context.aclMode})
               </Text>
             </View>
+            {context.workspaceName && context.workspaceName !== 'default' && (
+              <View style={{ flexDirection: 'row', gap: 2 }}>
+                <Text style={{ fontSize: 6, fontFamily: 'Helvetica-Bold', color: '#666666' }}>Workspace:</Text>
+                <Text style={{ fontSize: 6, fontFamily: 'Helvetica', color: '#888888' }}>
+                  {context.workspaceName}
+                </Text>
+              </View>
+            )}
           </View>
           {/* Stats row with schema source badge */}
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 3, alignItems: 'center' }}>

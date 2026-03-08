@@ -220,8 +220,7 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
                     </>
                   ) : (
                     <>
-                      <GoStarFill size={14} />
-                      Send to Sanity
+                      Send now
                     </>
                   )}
                 </button>

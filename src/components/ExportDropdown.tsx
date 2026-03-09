@@ -208,7 +208,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         })
 
         if (isFinite(minX)) {
-          const padding = 40
+          const padding = 100
           const svgW = Math.ceil(maxX - minX + padding * 2)
           const svgH = Math.ceil(maxY - minY + padding * 2)
 

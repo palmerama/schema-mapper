@@ -54,20 +54,20 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     return graphRef.current.querySelector('.react-flow') as HTMLElement | null
   }, [graphRef])
 
-  // Temporarily fit the viewport to show all nodes, run a capture function, then restore
-  const captureFullGraph = useCallback(async <T,>(captureFn: (el: HTMLElement) => Promise<T>): Promise<T | null> => {
+  // Temporarily fit the viewport to show all nodes, trim output to graph bounds + padding
+  const captureFullGraph = useCallback(async <T,>(captureFn: (el: HTMLElement, w: number, h: number) => Promise<T>): Promise<T | null> => {
     const el = getGraphElement()
     if (!el) return null
 
     const viewport = el.querySelector('.react-flow__viewport') as HTMLElement | null
-    if (!viewport) return captureFn(el)
+    if (!viewport) return captureFn(el, el.clientWidth, el.clientHeight)
 
     // Save current transform
     const originalTransform = viewport.style.transform
 
     // Calculate bounds of all nodes
     const nodeEls = el.querySelectorAll('.react-flow__node')
-    if (nodeEls.length === 0) return captureFn(el)
+    if (nodeEls.length === 0) return captureFn(el, el.clientWidth, el.clientHeight)
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     nodeEls.forEach((node) => {
@@ -86,39 +86,29 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
       }
     })
 
-    if (!isFinite(minX)) return captureFn(el)
+    if (!isFinite(minX)) return captureFn(el, el.clientWidth, el.clientHeight)
 
-    const graphWidth = maxX - minX
-    const graphHeight = maxY - minY
-    const containerWidth = el.clientWidth
-    const containerHeight = el.clientHeight
-    const padding = 40
+    // Trim to graph bounds with comfortable padding
+    const padding = 60
+    const fitW = Math.ceil(maxX - minX + padding * 2)
+    const fitH = Math.ceil(maxY - minY + padding * 2)
 
-    // Calculate scale to fit
-    const scaleX = containerWidth / (graphWidth + padding * 2)
-    const scaleY = containerHeight / (graphHeight + padding * 2)
-    const scale = Math.min(scaleX, scaleY, 1) // don't zoom in past 1x
+    // Translate viewport so graph starts at (padding, padding)
+    viewport.style.transform = `translate(${-minX + padding}px, ${-minY + padding}px) scale(1)`
 
-    // Calculate translation to center
-    const translateX = (containerWidth - graphWidth * scale) / 2 - minX * scale
-    const translateY = (containerHeight - graphHeight * scale) / 2 - minY * scale
-
-    // Apply fitted transform
-    viewport.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
-
-    // Force explicit dimensions so toSvg captures at the right size
+    // Resize container to match graph bounds
     const origWidth = el.style.width
     const origHeight = el.style.height
     const origOverflow = el.style.overflow
-    el.style.width = containerWidth + 'px'
-    el.style.height = containerHeight + 'px'
+    el.style.width = fitW + 'px'
+    el.style.height = fitH + 'px'
     el.style.overflow = 'hidden'
 
     // Wait for repaint
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
     try {
-      return await captureFn(el)
+      return await captureFn(el, fitW, fitH)
     } finally {
       // Restore original viewport and dimensions
       viewport.style.transform = originalTransform
@@ -148,11 +138,13 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     })
     setExporting('png')
     try {
-      const dataUrl = await captureFullGraph((el) =>
+      const dataUrl = await captureFullGraph((el, w, h) =>
         toPng(el, {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
           filter: exportFilter,
+          width: w,
+          height: h,
         })
       )
       if (dataUrl) {
@@ -179,10 +171,12 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
     })
     setExporting('svg')
     try {
-      const dataUrl = await captureFullGraph((el) =>
+      const dataUrl = await captureFullGraph((el, w, h) =>
         toSvg(el, {
           backgroundColor: '#ffffff',
           filter: exportFilter,
+          width: w,
+          height: h,
         })
       )
       if (dataUrl) {

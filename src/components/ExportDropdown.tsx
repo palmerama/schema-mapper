@@ -618,6 +618,15 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         datasetName={context.datasetName}
       />
     )}
+    {schemaCodeOpen && types && types.length > 0 && (
+      <SchemaCodeDialog
+        open={schemaCodeOpen}
+        onClose={() => setSchemaCodeOpen(false)}
+        types={types}
+        projectName={context.projectName}
+        datasetName={context.datasetName}
+      />
+    )}
     {showSendDialog && <SendToSanityDialog
       open={showSendDialog}
       onClose={() => setShowSendDialog(false)}

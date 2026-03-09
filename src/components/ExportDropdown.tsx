@@ -3,6 +3,7 @@ import { toPng, toSvg } from 'html-to-image'
 import { GrDownload } from 'react-icons/gr'
 import { GoStarFill } from 'react-icons/go'
 import { SendToSanityDialog } from './SendToSanityDialog'
+import { SchemaCodeDialog } from './SchemaCodeDialog'
 import { version as appVersion } from '../../package.json'
 import type { PDFNodeData, PDFEdgeData } from './SchemaGraphPDF'
 
@@ -34,6 +35,7 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
   const [showSendDialog, setShowSendDialog] = useState(false)
+  const [schemaCodeOpen, setSchemaCodeOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -423,9 +425,11 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         workspace: context.workspaceName && context.workspaceName !== 'default' ? context.workspaceName : undefined,
         types: (types || []).map(t => ({
           name: t.name,
+          ...(t.title ? { title: t.title } : {}),
           documentCount: t.documentCount,
           fields: t.fields.map(f => ({
             name: f.name,
+            ...(f.title ? { title: f.title } : {}),
             type: f.type,
             ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
             ...(f.isArray ? { isArray: true } : {}),
@@ -504,9 +508,11 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         workspace: context.workspaceName && context.workspaceName !== 'default' ? context.workspaceName : undefined,
         types: (types || []).map(t => ({
           name: t.name,
+          ...(t.title ? { title: t.title } : {}),
           documentCount: t.documentCount,
           fields: t.fields.map(f => ({
             name: f.name,
+            ...(f.title ? { title: f.title } : {}),
             type: f.type,
             ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
             ...(f.isArray ? { isArray: true } : {}),
@@ -576,6 +582,17 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
           >
             {exporting === 'json' ? 'Exporting…' : 'JSON'}
           </button>
+          {types && types.length > 0 && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+              <button
+                onClick={() => { setSchemaCodeOpen(true); setOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Schema Code
+              </button>
+            </>
+          )}
           {isEnterprise && (
             <>
               <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
@@ -592,6 +609,15 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         </div>
       )}
     </div>
+    {schemaCodeOpen && types && types.length > 0 && (
+      <SchemaCodeDialog
+        open={schemaCodeOpen}
+        onClose={() => setSchemaCodeOpen(false)}
+        types={types}
+        projectName={context.projectName}
+        datasetName={context.datasetName}
+      />
+    )}
     {showSendDialog && <SendToSanityDialog
       open={showSendDialog}
       onClose={() => setShowSendDialog(false)}

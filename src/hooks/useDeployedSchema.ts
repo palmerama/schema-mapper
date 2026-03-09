@@ -229,26 +229,27 @@ function mapStudioField(
     case 'string':
     case 'text':
     case 'email':
-      return {name, type: 'string'}
+      return {name, title: field.title || undefined, type: 'string'}
     case 'number':
-      return {name, type: 'number'}
+      return {name, title: field.title || undefined, type: 'number'}
     case 'boolean':
-      return {name, type: 'boolean'}
+      return {name, title: field.title || undefined, type: 'boolean'}
     case 'datetime':
     case 'date':
-      return {name, type: 'datetime'}
+      return {name, title: field.title || undefined, type: 'datetime'}
     case 'url':
-      return {name, type: 'url'}
+      return {name, title: field.title || undefined, type: 'url'}
     case 'slug':
-      return {name, type: 'slug'}
+      return {name, title: field.title || undefined, type: 'slug'}
     case 'image':
     case 'file':
-      return {name, type: 'image'}
+      return {name, title: field.title || undefined, type: 'image'}
     case 'geopoint':
-      return {name, type: 'object'}
+      return {name, title: field.title || undefined, type: 'object'}
     case 'reference':
       return {
         name,
+        title: field.title || undefined,
         type: 'reference',
         isReference: true,
         referenceTo: field.to?.[0]?.type,
@@ -265,6 +266,7 @@ function mapStudioField(
         const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type
         return {
           name,
+          title: field.title || undefined,
           type: 'reference',
           isReference: true,
           isArray: true,
@@ -272,17 +274,18 @@ function mapStudioField(
         }
       }
       if (hasBlocks) {
-        return {name, type: 'block', isArray: true}
+        return {name, title: field.title || undefined, type: 'block', isArray: true}
       }
-      return {name, type: 'array', isArray: true}
+      return {name, title: field.title || undefined, type: 'array', isArray: true}
     }
     case 'object':
-      return {name, type: 'object'}
+      return {name, title: field.title || undefined, type: 'object'}
     default:
       // Check if the type name matches a known document type — inline object (not a reference)
       if (documentTypeNames?.has(type)) {
         return {
           name,
+          title: field.title || undefined,
           type: 'object',
           isInlineObject: true,
           referenceTo: type,
@@ -290,9 +293,9 @@ function mapStudioField(
       }
       // Check if it matches any known type — treat as object
       if (allTypeNames?.has(type)) {
-        return {name, type: 'object'}
+        return {name, title: field.title || undefined, type: 'object'}
       }
-      return {name, type: 'object'}
+      return {name, title: field.title || undefined, type: 'object'}
   }
 }
 
@@ -321,6 +324,7 @@ function parseStudioSchema(
 
     return {
       name: docType.name,
+      title: docType.title || undefined,
       fields,
     }
   })
@@ -371,6 +375,7 @@ function parseDeployedSchema(
 
     return {
       name: docType.name,
+      title: (docType as any).title || undefined,
       fields,
     }
   })

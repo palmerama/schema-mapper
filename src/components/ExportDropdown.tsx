@@ -118,7 +118,9 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
   }, [getGraphElement])
 
   const exportFilter = (node: Element) => {
-    const cls = (node as HTMLElement).className?.toString?.() || ''
+    // Use getAttribute('class') — works on both HTML and SVG elements
+    // (.className on SVG elements is an SVGAnimatedString, not a plain string)
+    const cls = node.getAttribute?.('class') || ''
     if (cls.includes('react-flow__controls')) return false
     if (cls.includes('react-flow__minimap')) return false
     if (cls.includes('react-flow__background')) return false
@@ -311,12 +313,12 @@ export function ExportDropdown({ graphRef, context, types, isEnterprise }: Expor
         const isDashed =
           !!dashArray && dashArray !== 'none' && dashArray !== ''
 
-        // Extract label if present
-        const labelEl = edgeEl
-          .closest('.react-flow__edges')
-          ?.parentElement?.querySelector(
-            `.react-flow__edgelabel[data-id="${edgeId}"]`,
-          ) as HTMLElement | null
+        // Extract label from EdgeLabelRenderer container
+        // Labels are rendered in .react-flow__edgelabel-renderer as divs with data-edge-id
+        const labelRenderer = el.querySelector('.react-flow__edgelabel-renderer')
+        const labelEl = labelRenderer?.querySelector(
+          `[data-edge-id="${edgeId}"]`,
+        ) as HTMLElement | null
         const label = labelEl?.textContent?.trim() || undefined
 
         pdfEdges.push({

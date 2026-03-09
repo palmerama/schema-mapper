@@ -3,9 +3,9 @@ import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Dialog, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { Tab, TabList, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge, SchemaGraph, ExportDropdown } from '@sanity-labs/schema-mapper-core'
+import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportContext, ExportMenuItem } from '@sanity-labs/schema-mapper-core'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
@@ -545,19 +545,7 @@ function OrgOverview({
       )}
 
       {/* ---- Schema Info Dialog ---- */}
-      {showSchemaInfoDialog && (
-        <>
-
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
-        <Dialog
-          id="schema-info-dialog"
-          header={<span className="text-xl font-normal">Schema sources</span>}
-          onClose={() => setShowSchemaInfoDialog(false)}
-          onClickOutside={() => setShowSchemaInfoDialog(false)}
-          width={1}
-          animate
-        >
-          <Box padding={4} paddingTop={0}>
+      <InfoDialog open={showSchemaInfoDialog} onClose={() => setShowSchemaInfoDialog(false)} title="Schema sources">
             <Stack space={4}>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Schema Mapper can read your schema from two different sources. The source used for the current dataset is shown in the badge next to the dataset info.
@@ -592,25 +580,10 @@ function OrgOverview({
                 </div>
               </div>
             </Stack>
-          </Box>
-        </Dialog>
-        </>
-      )}
+      </InfoDialog>
 
       {/* ---- ACL Mode Info Dialog ---- */}
-      {showAclDialog && (
-        <>
-
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
-        <Dialog
-          id="acl-info-dialog"
-          header={<span className="text-xl font-normal">Dataset access mode</span>}
-          onClose={() => setShowAclDialog(false)}
-          onClickOutside={() => setShowAclDialog(false)}
-          width={1}
-          animate
-        >
-          <Box padding={4} paddingTop={0}>
+      <InfoDialog open={showAclDialog} onClose={() => setShowAclDialog(false)} title="Dataset access mode">
             <Stack space={4}>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Every Sanity dataset has an access control mode that determines how unauthenticated requests are handled.
@@ -636,25 +609,10 @@ function OrgOverview({
                 </div>
               </div>
             </Stack>
-          </Box>
-        </Dialog>
-        </>
-      )}
+      </InfoDialog>
 
       {/* ---- Locked Projects Dialog ---- */}
-      {showLockedDialog && (
-        <>
-
-        <div className="fixed inset-0 z-[99] backdrop-blur-[2px]" />
-        <Dialog
-          id="locked-projects-dialog"
-          header={<span className="text-xl font-normal">Projects with no access</span>}
-          onClose={() => setShowLockedDialog(false)}
-          onClickOutside={() => setShowLockedDialog(false)}
-          width={1}
-          animate
-        >
-          <Box padding={4} paddingTop={0}>
+      <InfoDialog open={showLockedDialog} onClose={() => setShowLockedDialog(false)} title="Projects with no access">
             <Stack space={4}>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 These projects are in your organization, but you don't have permission to access them. You likely haven't been added as a member. Ask a project admin or organization owner for access.
@@ -671,10 +629,7 @@ function OrgOverview({
                 ))}
               </div>
             </Stack>
-          </Box>
-        </Dialog>
-        </>
-      )}
+      </InfoDialog>
 
       {/* ---- Send to Sanity Dialog (enterprise) ---- */}
       {showSendDialog && selectedProject && selectedDataset && (

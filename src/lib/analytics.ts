@@ -6,6 +6,12 @@ const POSTHOG_HOST = 'https://eu.i.posthog.com'
 
 let initialized = false
 let currentOrgId: string | null = null
+let excluded = false
+
+// Internal orgs excluded from analytics
+const EXCLUDED_ORGS = new Set([
+  'o02mZUBKf',  // Sanity (Adam's dev org)
+])
 
 export function initAnalytics() {
   if (initialized) return
@@ -32,6 +38,8 @@ export function identifyOrg(orgId: string, orgName?: string) {
       posthog.reset()
     }
     currentOrgId = orgId
+    excluded = EXCLUDED_ORGS.has(orgId)
+    if (excluded) return
     posthog.identify(orgId, {
       org_name: orgName,
       app_version: pkg.version,
@@ -43,7 +51,7 @@ export function identifyOrg(orgId: string, orgName?: string) {
 
 /** Track a named event with properties + automatic version tag */
 export function trackEvent(event: string, properties?: Record<string, unknown>) {
-  if (!initialized) return
+  if (!initialized || excluded) return
   try {
     posthog.capture(event, {
       ...properties,

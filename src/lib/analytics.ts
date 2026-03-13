@@ -49,6 +49,16 @@ export function identifyOrg(orgId: string, orgName?: string) {
   }
 }
 
+/** Register enterprise status — included on all subsequent events */
+export function setEnterprise(isEnterprise: boolean) {
+  if (!initialized) return
+  try {
+    posthog.register({ is_enterprise: isEnterprise })
+  } catch (e) {
+    // Silent fail
+  }
+}
+
 /** Track a named event with properties + automatic version tag */
 export function trackEvent(event: string, properties?: Record<string, unknown>) {
   if (!initialized || excluded) return

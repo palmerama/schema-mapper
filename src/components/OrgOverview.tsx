@@ -10,7 +10,7 @@ import type { ExportContext, ExportMenuItem } from '@sanity-labs/schema-mapper-c
 import { Skeleton } from '@/components/ui/skeleton'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
-import { trackEvent } from '../lib/analytics'
+import { trackEvent, setEnterprise } from '../lib/analytics'
 import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
@@ -162,6 +162,11 @@ function OrgOverview({
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
+
+  // Register enterprise status for analytics
+  useEffect(() => {
+    setEnterprise(isEnterprise)
+  }, [isEnterprise])
 
   // ---- Refs ----
   const graphRef = useRef<HTMLDivElement>(null)

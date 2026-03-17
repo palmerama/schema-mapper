@@ -235,13 +235,8 @@ function OrgOverview({
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
   }, [collapseEnabled])
-  const handleGraphMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleGraphMouseLeave = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
-    // Only expand nav when mouse exits from the top edge (toward the nav)
-    const rect = e.currentTarget.getBoundingClientRect()
-    if (e.clientY <= rect.top + 2) {
-      collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
-    }
   }, [])
 
 
@@ -431,6 +426,10 @@ function OrgOverview({
             /* ---- Collapsed Breadcrumb ---- */
             <div
               className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
+              onMouseEnter={() => {
+                if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+                collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
+              }}
               onClick={() => setNavCollapsed(false)}
             >
               {selectedProject && (

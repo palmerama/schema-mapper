@@ -11,20 +11,13 @@ import {initAnalytics} from './lib/analytics'
 
 initAnalytics()
 
-// DEBUG: Catch errors at every level
+// Suppress ResizeObserver loop errors — these fire with error=null and crash Vite's overlay
 if (typeof window !== 'undefined') {
-  // Capture phase — fires before any other handler
   window.addEventListener('error', (event) => {
-    console.log('🔴 [DEBUG] window error (capture):', event.message, event.error, event.filename, event.lineno)
-  }, true)
-  window.addEventListener('error', (event) => {
-    console.log('🔴 [DEBUG] window error (bubble):', event.message, event.error)
-  })
-  window.addEventListener('unhandledrejection', (event) => {
-    console.log('🔴 [DEBUG] unhandled rejection:', event.reason)
-  }, true)
-  window.addEventListener('unhandledrejection', (event) => {
-    console.log('🔴 [DEBUG] unhandled rejection (bubble):', event.reason)
+    if (event.message?.includes?.('ResizeObserver') || event.error === null) {
+      event.preventDefault()
+      return
+    }
   })
 }
 

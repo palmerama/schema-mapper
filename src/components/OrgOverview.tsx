@@ -191,13 +191,21 @@ function OrgOverview({
   useEffect(() => {
     const el = navContentRef.current
     if (!el) return
+    let raf: number | null = null
     const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setNavNaturalHeight(entry.contentRect.height)
-      }
+      // Debounce via rAF to avoid ResizeObserver loop limit errors
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        for (const entry of entries) {
+          setNavNaturalHeight(entry.contentRect.height)
+        }
+      })
     })
     observer.observe(el)
-    return () => observer.disconnect()
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
   }, [])
 
   // Only enable collapse when nav is taller than ~2 rows (~80px)

@@ -181,6 +181,17 @@ function OrgOverview({
   // Collapsible nav — collapses to breadcrumb when mouse enters graph area
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [fitViewTrigger, setFitViewTrigger] = useState(0)
+  const navRef = useRef<HTMLDivElement>(null)
+
+  // Trigger fitView after nav transition completes
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const handler = () => setFitViewTrigger(c => c + 1)
+    el.addEventListener('transitionend', handler)
+    return () => el.removeEventListener('transitionend', handler)
+  }, [])
   const handleGraphMouseEnter = useCallback(() => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     collapseTimerRef.current = setTimeout(() => setNavCollapsed(true), 400)
@@ -369,6 +380,7 @@ function OrgOverview({
         <>
           {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
           <div
+            ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
             style={{ maxHeight: navCollapsed ? 36 : 300 }}
           >
@@ -608,7 +620,7 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} />
+              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} fitViewTrigger={fitViewTrigger} />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>

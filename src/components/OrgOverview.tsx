@@ -444,21 +444,6 @@ function OrgOverview({
                       <span className="font-normal">{selectedWorkspaceName}</span>
                     </>
                   )}
-                  {effectiveSource && (
-                    <>
-                      <span className="text-muted-foreground">·</span>
-                      <Badge
-                        variant="default"
-                        className={
-                          (effectiveSource === 'deployed'
-                            ? 'bg-blue-100 text-blue-800 font-normal dark:bg-blue-900/50 dark:text-blue-300'
-                            : 'bg-amber-100 text-amber-800 font-normal dark:bg-amber-900/50 dark:text-amber-300')
-                        }
-                      >
-                        {effectiveSource === 'deployed' ? <><RiCheckFill className="inline-block mr-1 align-middle" />deployed</> : <><RiAlertFill className="inline-block mr-1 align-middle" />inferred</>}
-                      </Badge>
-                    </>
-                  )}
                 </>
               )}
               {!selectedProject && <span>Select a project…</span>}

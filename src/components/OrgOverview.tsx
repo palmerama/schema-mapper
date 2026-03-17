@@ -346,6 +346,7 @@ function OrgOverview({
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
+        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 1 } : undefined,
       }
 
       const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'

@@ -572,7 +572,12 @@ function OrgOverview({
 
           {/* ---- Dataset Info Line ---- */}
           {selectedDataset && !isSchemasLoading && (
-            <div className="flex items-center gap-2 mt-3 py-2 text-sm">
+            <div
+              className="flex items-center gap-2 mt-3 py-2 text-sm"
+              onMouseEnter={() => {
+                if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
+              }}
+            >
               <GoDatabase className="text-base" />
               <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
               <Badge

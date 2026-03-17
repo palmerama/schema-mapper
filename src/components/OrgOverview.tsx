@@ -188,14 +188,18 @@ function OrgOverview({
   const [navNaturalHeight, setNavNaturalHeight] = useState(0)
 
   // Measure nav content height to decide if collapse is worthwhile
+  // Only measure when nav is expanded — collapsed height is meaningless
+  const navCollapsedRef = useRef(false)
+  navCollapsedRef.current = navCollapsed
   useEffect(() => {
     const el = navContentRef.current
     if (!el) return
     let raf: number | null = null
     const observer = new ResizeObserver((entries) => {
-      // Debounce via rAF to avoid ResizeObserver loop limit errors
+      if (navCollapsedRef.current) return // Don't measure during collapse
       if (raf) cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
+        if (navCollapsedRef.current) return // Double-check after rAF
         for (const entry of entries) {
           setNavNaturalHeight(entry.contentRect.height)
         }

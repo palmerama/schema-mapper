@@ -54,12 +54,13 @@ class ErrorBoundary extends React.Component<
     this.state = {hasError: false, error: null}
   }
 
-  static getDerivedStateFromError(error: Error) {
-    return {hasError: true, error}
+  static getDerivedStateFromError(error: unknown) {
+    return {hasError: true, error: error instanceof Error ? error : new Error(String(error ?? 'Unknown error'))}
   }
 
-  componentDidCatch(error: Error) {
-    this.props.onError?.(error)
+  componentDidCatch(error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error ?? 'Unknown error'))
+    this.props.onError?.(err)
   }
 
   render() {
@@ -294,7 +295,7 @@ function ActiveSchemaDiscovery({
     if (!isLoading && !reportedRef.current) {
       reportedRef.current = true
       if (error) {
-        onError(key, error.message || 'Schema discovery failed')
+        onError(key, error?.message || 'Schema discovery failed')
       } else {
         onDiscovered(key, types, schemaSource ?? 'inferred', deployedSchemas)
       }
@@ -421,7 +422,7 @@ function LiveOrgOverviewInner() {
             projectId,
             datasets: [{name: 'production', aclMode: 'public', totalDocuments: 0, types: []}],
           })
-          dispatch({type: 'ERROR', key: projectId, error: err.message || 'Failed to fetch datasets'})
+          dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
         })
     },
     [client, projects],
@@ -674,7 +675,7 @@ function LiveOrgOverviewInner() {
                 dispatch({
                   type: 'ERROR',
                   key: selectedSchemaKey,
-                  error: error.message || 'Schema discovery failed',
+                  error: error?.message || 'Schema discovery failed',
                 })
               }
             }}

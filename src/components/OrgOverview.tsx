@@ -179,6 +179,10 @@ function OrgOverview({
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
   const graphStateRef = useRef(graphState)
   graphStateRef.current = graphState
+  const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
+  const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
+    viewportRef.current = v
+  }, [])
 
   // ---- Cross-dataset navigation ----
   // Saves the current view so we can return to it after following a cross-dataset link
@@ -214,7 +218,7 @@ function OrgOverview({
         focusDepth: graphStateRef.current.focusDepth,
         projectName: (proj as any)?.displayName || selectedProjectId,
         datasetLabel: selectedDatasetName,
-        viewport: graphStateRef.current.viewport,
+        viewport: viewportRef.current,
       }])
     }
 
@@ -781,6 +785,7 @@ function OrgOverview({
               <SchemaGraph
                 types={effectiveTypes}
                 onStateChange={setGraphState}
+                onViewportChange={handleViewportChange}
                 fitViewTrigger={fitViewTrigger}
                 onCrossDatasetNavigate={handleCrossDatasetNavigate}
                 pendingFocusType={pendingNavTarget?.typeName}

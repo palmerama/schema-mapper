@@ -177,6 +177,8 @@ function OrgOverview({
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
+  const graphStateRef = useRef(graphState)
+  graphStateRef.current = graphState
 
   // ---- Cross-dataset navigation ----
   // Saves the current view so we can return to it after following a cross-dataset link
@@ -205,8 +207,8 @@ function OrgOverview({
         projectId: selectedProjectId,
         datasetName: selectedDatasetName,
         schemaId: selectedSchemaId ?? undefined,
-        focusedType: graphState.focusedType,
-        focusDepth: graphState.focusDepth,
+        focusedType: graphStateRef.current.focusedType,
+        focusDepth: graphStateRef.current.focusDepth,
         projectName: (proj as any)?.displayName || selectedProjectId,
         datasetLabel: selectedDatasetName,
       }])
@@ -235,7 +237,7 @@ function OrgOverview({
       onDatasetSelect(targetDatasetName)
       setPendingNavTarget({ typeName: targetTypeName })
     }
-  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, graphState, projects, onProjectSelect, onDatasetSelect])
+  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, projects, onProjectSelect, onDatasetSelect])
 
   const handleNavigateBack = useCallback(() => {
     const stack = [...navigationStack]

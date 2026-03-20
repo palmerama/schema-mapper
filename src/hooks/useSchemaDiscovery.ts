@@ -17,14 +17,14 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
 
   // Reference detection
   if (typeof value === 'object' && value !== null && '_ref' in value) {
-    const hasCrossDataset = '_dataset' in value
+    const hasCrossDataset = '_dataset' in value || '_projectRef' in value
     return {
       name: key,
       type: 'reference',
       isReference: true,
       ...(hasCrossDataset ? {
         isCrossDatasetReference: true,
-        crossDatasetName: (value as any)._dataset,
+        crossDatasetName: (value as any)._dataset || (value as any)._projectRef || 'external',
       } : {}),
     }
   }
@@ -34,7 +34,7 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
     const firstItem = value[0]
     // Array of references
     if (firstItem && typeof firstItem === 'object' && '_ref' in firstItem) {
-      const hasCrossDataset = '_dataset' in firstItem
+      const hasCrossDataset = '_dataset' in firstItem || '_projectRef' in firstItem
       return {
         name: key,
         type: 'reference',
@@ -42,7 +42,7 @@ function inferFieldType(value: unknown, key: string): DiscoveredField {
         isArray: true,
         ...(hasCrossDataset ? {
           isCrossDatasetReference: true,
-          crossDatasetName: (firstItem as any)._dataset,
+          crossDatasetName: (firstItem as any)._dataset || (firstItem as any)._projectRef || 'external',
         } : {}),
       }
     }

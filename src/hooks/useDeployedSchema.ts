@@ -264,16 +264,26 @@ function mapStudioField(
         crossDatasetName: field.dataset || undefined,
         referenceTo: field.to?.[0]?.type,
       }
+    case 'globalDocumentReference':
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'reference',
+        isReference: true,
+        isCrossDatasetReference: true,
+        crossDatasetName: field.resourceId || field.resourceType || 'external',
+        referenceTo: field.to?.[0]?.type,
+      }
     case 'array': {
       const ofTypes = field.of || []
       const hasReferences = ofTypes.some((o: any) => o.type === 'reference')
-      const hasCrossDatasetReferences = ofTypes.some((o: any) => o.type === 'crossDatasetReference')
+      const hasCrossDatasetReferences = ofTypes.some((o: any) => o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference')
       const hasBlocks = ofTypes.some(
         (o: any) => o.type === 'block' || o.type === 'portableText',
       )
 
       if (hasCrossDatasetReferences) {
-        const refItem = ofTypes.find((o: any) => o.type === 'crossDatasetReference')
+        const refItem = ofTypes.find((o: any) => o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference')
         return {
           name,
           title: field.title || undefined,
@@ -281,7 +291,7 @@ function mapStudioField(
           isReference: true,
           isArray: true,
           isCrossDatasetReference: true,
-          crossDatasetName: refItem?.dataset || undefined,
+          crossDatasetName: refItem?.dataset || refItem?.resourceId || refItem?.resourceType || 'external',
           referenceTo: refItem?.to?.[0]?.type,
         }
       }

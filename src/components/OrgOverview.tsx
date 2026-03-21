@@ -539,7 +539,7 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 36 : 500 }}
+            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 42 : 500 }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
@@ -555,7 +555,7 @@ function OrgOverview({
               {navigationStack.length > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border-2 border-dashed border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border-2 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
                 >
                   <GoArrowLeft className="w-3.5 h-3.5" />
                   <span>Back to</span>

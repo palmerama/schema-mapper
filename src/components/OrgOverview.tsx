@@ -440,6 +440,65 @@ function OrgOverview({
         }
       } catch {}
 
+      // Collect linked schemas from cross-dataset/global references
+      const linkedSchemas: Array<{
+        project: { id: string; name: string };
+        dataset: { name: string };
+        types: typeof effectiveTypes;
+      }> = []
+      try {
+        const seen = new Set<string>()
+        for (const t of (effectiveTypes || [])) {
+          for (const f of t.fields) {
+            if (f.isCrossDatasetReference && f.crossDatasetName) {
+              // crossDatasetName is either "datasetName" (cross-dataset) or "projectId.datasetName" (global)
+              let targetProjectId = selectedProject?.id ?? ''
+              let targetDatasetName = f.crossDatasetName
+              let targetProjectName = selectedProject?.displayName ?? ''
+              if (f.isGlobalReference && f.crossDatasetName.includes('.')) {
+                const [pId, dName] = f.crossDatasetName.split('.')
+                targetProjectId = pId
+                targetDatasetName = dName
+                // Look up project name from projects array
+                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
+                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+              }
+              const cacheKey = `${targetProjectId}::${targetDatasetName}`
+              if (!seen.has(cacheKey) && schemasRef.current.has(cacheKey)) {
+                seen.add(cacheKey)
+                const cachedTypes = schemasRef.current.get(cacheKey) || []
+                if (cachedTypes.length > 0) {
+                  linkedSchemas.push({
+                    project: { id: targetProjectId, name: targetProjectName },
+                    dataset: { name: targetDatasetName },
+                    types: cachedTypes.map(lt => ({
+                      name: lt.name,
+                      ...(lt.title ? { title: lt.title } : {}),
+                      documentCount: lt.documentCount,
+                      fields: lt.fields.map(lf => ({
+                        name: lf.name,
+                        ...(lf.title ? { title: lf.title } : {}),
+                        type: lf.type,
+                        ...(lf.isReference ? { isReference: true, referenceTo: lf.referenceTo } : {}),
+                        ...(lf.isArray ? { isArray: true } : {}),
+                        ...(lf.isInlineObject ? { isInlineObject: true, referenceTo: lf.referenceTo } : {}),
+                        ...(lf.isCrossDatasetReference ? {
+                          isCrossDatasetReference: true,
+                          crossDatasetName: lf.crossDatasetName,
+                          referenceTo: lf.referenceTo,
+                          ...(lf.isGlobalReference ? { isGlobalReference: true } : {}),
+                          ...(lf.crossDatasetTooltip ? { crossDatasetTooltip: lf.crossDatasetTooltip } : {}),
+                        } : {}),
+                      })),
+                    })),
+                  })
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+
       const exportCtx = {
         projectName: selectedProject?.displayName ?? '',
         projectId: selectedProject?.id ?? '',
@@ -476,11 +535,19 @@ function OrgOverview({
             ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
             ...(f.isArray ? { isArray: true } : {}),
             ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
+            ...(f.isCrossDatasetReference ? {
+              isCrossDatasetReference: true,
+              crossDatasetName: f.crossDatasetName,
+              referenceTo: f.referenceTo,
+              ...(f.isGlobalReference ? { isGlobalReference: true } : {}),
+              ...(f.crossDatasetTooltip ? { crossDatasetTooltip: f.crossDatasetTooltip } : {}),
+            } : {}),
           })),
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
         focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
+        linkedSchemas: linkedSchemas.length > 0 ? linkedSchemas : undefined,
       }
 
       const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'

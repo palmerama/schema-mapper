@@ -340,14 +340,8 @@ function OrgOverview({
     }
   }, [collapseEnabled, navCollapsed])
 
-  // Trigger fitView after nav transition completes
-  useEffect(() => {
-    const el = navRef.current
-    if (!el) return
-    const handler = () => setFitViewTrigger(c => c + 1)
-    el.addEventListener('transitionend', handler)
-    return () => el.removeEventListener('transitionend', handler)
-  }, [])
+  // Nav transitions: React Flow preserves viewport transform automatically
+  // when container resizes — no fitView needed, user's zoom/pan stays intact
   const handleGraphMouseEnter = useCallback(() => {
     if (!collapseEnabled || !selectedProjectId) return
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)

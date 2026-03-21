@@ -274,7 +274,7 @@ function mapStudioField(
         isCrossDatasetReference: true,
         isGlobalReference: true,
         crossDatasetName: field.resourceId || field.resourceType || 'external',
-        crossDatasetTooltip: `Global reference to <strong style="color:#7c3aed">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${field.resourceId || field.resourceType || 'external resource'}</strong>`,
+        crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${field.resourceId || field.resourceType || 'external resource'}</strong>`,
         referenceTo: field.to?.[0]?.type,
       }
     case 'array': {
@@ -299,7 +299,7 @@ function mapStudioField(
           isGlobalReference: isGlobal || undefined,
           crossDatasetName: targetName,
           crossDatasetTooltip: isGlobal
-            ? `Global reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
+            ? `Global Document Reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
             : `Cross-dataset reference to <strong style="color:#0d9488">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#0d9488">${targetName}</strong>`,
           referenceTo: refItem?.to?.[0]?.type,
         }

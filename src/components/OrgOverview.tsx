@@ -756,27 +756,6 @@ function OrgOverview({
 
           {/* ---- Schema Graph Area ---- */}
           {/* Cross-dataset navigation bar */}
-          {navigationStack.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
-              <button
-                onClick={handleNavigateBack}
-                className="flex items-center gap-1.5 text-sm text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
-              >
-                <GoArrowLeft className="w-4 h-4" />
-                <span>Back to</span>
-                <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
-                <GoChevronRight className="w-3 h-3 opacity-50" />
-                <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
-                {navigationStack[navigationStack.length - 1].focusedType && (
-                  <>
-                    <GoChevronRight className="w-3 h-3 opacity-50" />
-                    <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
           <div
             ref={graphRef}
             className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden"
@@ -809,6 +788,27 @@ function OrgOverview({
               </div>
             )}
           </div>
+
+          {navigationStack.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 mt-2 mb-[30px] rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+              <button
+                onClick={handleNavigateBack}
+                className="flex items-center gap-1.5 text-sm text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
+              >
+                <GoArrowLeft className="w-4 h-4" />
+                <span>Back to</span>
+                <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
+                <GoChevronRight className="w-3 h-3 opacity-50" />
+                <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
+                {navigationStack[navigationStack.length - 1].focusedType && navigationStack[navigationStack.length - 1].focusedType !== '__clear__' && (
+                  <>
+                    <GoChevronRight className="w-3 h-3 opacity-50" />
+                    <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </>
       )}
 

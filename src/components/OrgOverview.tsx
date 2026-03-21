@@ -340,8 +340,30 @@ function OrgOverview({
     }
   }, [collapseEnabled, navCollapsed])
 
-  // Nav transitions: React Flow preserves viewport transform automatically
-  // when container resizes — no fitView needed, user's zoom/pan stays intact
+  // Compensate viewport Y to keep visual center stable during nav collapse/expand
+  const graphHeightRef = useRef<number | null>(null)
+  useEffect(() => {
+    const navEl = navRef.current
+    const graphEl = graphRef.current
+    if (!navEl || !graphEl) return
+    // Capture height before transition starts
+    graphHeightRef.current = graphEl.clientHeight
+    const handler = () => {
+      const prevHeight = graphHeightRef.current
+      const newHeight = graphEl.clientHeight
+      if (prevHeight != null && prevHeight !== newHeight) {
+        const delta = newHeight - prevHeight
+        const vp = viewportRef.current
+        // Shift viewport Y by half the height change to keep center stable
+        setPendingRestoreViewport({ x: vp.x, y: vp.y + (delta / 2), zoom: vp.zoom })
+        // Clear after applying
+        setTimeout(() => setPendingRestoreViewport(null), 100)
+      }
+      graphHeightRef.current = newHeight
+    }
+    navEl.addEventListener('transitionend', handler)
+    return () => navEl.removeEventListener('transitionend', handler)
+  }, [])
   const handleGraphMouseEnter = useCallback(() => {
     if (!collapseEnabled || !selectedProjectId) return
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)

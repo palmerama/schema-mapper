@@ -539,18 +539,37 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: navCollapsed && collapseEnabled ? 36 : 500 }}
+            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 36 : 500 }}
           >
-          {navCollapsed ? (
+          {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
             <div
               className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
               onMouseEnter={() => {
+                if (navigationStack.length > 0) return
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
                 collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
               }}
-              onClick={() => setNavCollapsed(false)}
+              onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
             >
+              {navigationStack.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 dark:bg-purple-950/30 border-2 border-dashed border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors mr-1"
+                >
+                  <GoArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to</span>
+                  <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
+                  <GoChevronRight className="w-3 h-3 opacity-50" />
+                  <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
+                  {navigationStack[navigationStack.length - 1].focusedType && navigationStack[navigationStack.length - 1].focusedType !== '__clear__' && (
+                    <>
+                      <GoChevronRight className="w-3 h-3 opacity-50" />
+                      <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
+                    </>
+                  )}
+                </button>
+              )}
               {selectedProject && (
                 <>
                   <span className="font-normal text-foreground">{selectedProject.displayName}</span>
@@ -758,7 +777,7 @@ function OrgOverview({
           {/* Cross-dataset navigation bar */}
           <div
             ref={graphRef}
-            className={"flex-1 min-h-[500px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? " border-2 border-dashed border-purple-300 dark:border-purple-700" : " border mb-[30px]")}
+            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? " border-2 border-dashed border-purple-300 dark:border-purple-700" : " border")}
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
@@ -789,26 +808,7 @@ function OrgOverview({
             )}
           </div>
 
-          {navigationStack.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 mt-1 mb-[30px] rounded-lg bg-purple-50 dark:bg-purple-950/30 border-2 border-purple-300 dark:border-purple-700">
-              <button
-                onClick={handleNavigateBack}
-                className="flex items-center gap-1.5 text-sm text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors"
-              >
-                <GoArrowLeft className="w-4 h-4" />
-                <span>Back to</span>
-                <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
-                <GoChevronRight className="w-3 h-3 opacity-50" />
-                <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
-                {navigationStack[navigationStack.length - 1].focusedType && navigationStack[navigationStack.length - 1].focusedType !== '__clear__' && (
-                  <>
-                    <GoChevronRight className="w-3 h-3 opacity-50" />
-                    <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+
         </>
       )}
 

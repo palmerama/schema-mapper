@@ -179,12 +179,26 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
+  const [mediaLibraryInfo, setMediaLibraryInfo] = useState<{ fieldName: string; typeName: string } | null>(null)
+  const [inaccessibleInfo, setInaccessibleInfo] = useState<{ projectName: string; datasetName: string } | null>(null)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
   const graphStateRef = useRef(graphState)
   graphStateRef.current = graphState
   const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
   const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
     viewportRef.current = v
+  }, [])
+
+  // ---- Accessible project IDs for cross-dataset lozenge rendering ----
+  const accessibleProjectIds = useMemo(() => new Set(projects.map(p => p.id)), [projects])
+
+  // ---- Media library / inaccessible project handlers ----
+  const handleMediaLibraryClick = useCallback((fieldName: string, typeName: string) => {
+    setMediaLibraryInfo({ fieldName, typeName })
+  }, [])
+
+  const handleInaccessibleClick = useCallback((displayName: string, projectId: string) => {
+    setInaccessibleInfo({ projectName: displayName, datasetName: projectId })
   }, [])
 
   // ---- Cross-dataset navigation ----
@@ -933,6 +947,9 @@ function OrgOverview({
                 onViewportChange={handleViewportChange}
                 fitViewTrigger={fitViewTrigger}
                 onCrossDatasetNavigate={handleCrossDatasetNavigate}
+                accessibleProjectIds={accessibleProjectIds}
+                onMediaLibraryClick={handleMediaLibraryClick}
+                onInaccessibleClick={handleInaccessibleClick}
                 pendingFocusType={pendingNavTarget?.typeName}
                 pendingFocusDepth={pendingNavTarget?.focusDepth}
                 restoreViewport={pendingRestoreViewport}
@@ -1054,6 +1071,37 @@ function OrgOverview({
           linkedSchemaStatus={linkedSchemaStatus}
         />
       )}
+
+      {/* ---- Media Library Info Dialog ---- */}
+      <InfoDialog open={!!mediaLibraryInfo} onClose={() => setMediaLibraryInfo(null)} title="Media Library reference">
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The <span className="font-medium text-foreground">{mediaLibraryInfo?.fieldName}</span> field
+            on <span className="font-medium text-foreground">{mediaLibraryInfo?.typeName}</span> is
+            a <span className="font-medium text-foreground">Global Document Reference</span> pointing
+            to the Sanity Media Library.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Media Library assets are managed separately from document content and are not included in schema mapping.
+          </p>
+        </Stack>
+      </InfoDialog>
+
+      {/* ---- Inaccessible Project Info Dialog ---- */}
+      <InfoDialog open={!!inaccessibleInfo} onClose={() => setInaccessibleInfo(null)} title="Project not accessible">
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This field references data in <span className="font-medium text-foreground">{inaccessibleInfo?.projectName}</span>,
+            but you don&apos;t have access to that project.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Ask a project admin or organization owner for access to view the linked schema.
+          </p>
+          <p className="text-xs text-muted-foreground/70 font-mono">
+            {inaccessibleInfo?.datasetName}
+          </p>
+        </Stack>
+      </InfoDialog>
     </div>
   )
 }

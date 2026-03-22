@@ -494,6 +494,8 @@ function LiveOrgOverviewInner() {
         ...t,
         fields: t.fields.map(f => {
           if (!f.isCrossDatasetReference || !f.crossDatasetName) return f
+          // Media library GDRs don't need project name resolution
+          if (f.crossDatasetResourceType === 'media-library') return f
           // resourceId format: "projectId.dataset" — resolve projectId to name
           const parts = f.crossDatasetName.split('.')
           if (parts.length === 2) {

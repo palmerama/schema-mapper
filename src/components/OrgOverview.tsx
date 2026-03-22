@@ -399,6 +399,41 @@ function OrgOverview({
     ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
     : undefined
 
+  // ---- Linked schema status for cross-dataset/global refs ----
+  const linkedSchemaStatus = useMemo(() => {
+    if (!effectiveTypes || effectiveTypes.length === 0) return undefined
+    const seen = new Set<string>()
+    const status: Array<{projectName: string; datasetName: string; isGlobal: boolean; included: boolean}> = []
+    for (const t of effectiveTypes) {
+      for (const f of t.fields) {
+        if (f.isCrossDatasetReference && f.crossDatasetName) {
+          let targetProjectId = selectedProject?.id ?? ''
+          let targetDatasetName = f.crossDatasetName
+          let targetProjectName = selectedProject?.displayName ?? ''
+          const isGlobal = !!f.isGlobalReference
+          if (isGlobal && f.crossDatasetName.includes('.')) {
+            const [pId, dName] = f.crossDatasetName.split('.')
+            targetProjectId = pId
+            targetDatasetName = dName
+            const proj = projects?.find((p: any) => p.id === targetProjectId)
+            targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+          }
+          const key = `${targetProjectId}::${targetDatasetName}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            status.push({
+              projectName: targetProjectName,
+              datasetName: targetDatasetName,
+              isGlobal,
+              included: schemasRef.current.has(key) && (schemasRef.current.get(key)?.length ?? 0) > 0,
+            })
+          }
+        }
+      }
+    }
+    return status.length > 0 ? status : undefined
+  }, [effectiveTypes, selectedProject, projects])
+
   // ---- Send to Sanity handler (enterprise only) ----
   const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
     trackEvent('export_triggered', {
@@ -998,6 +1033,7 @@ function OrgOverview({
             schemaSource: effectiveSource,
             workspaceName: selectedWorkspaceName,
           }}
+          linkedSchemaStatus={linkedSchemaStatus}
         />
       )}
     </div>

@@ -414,7 +414,15 @@ function OrgOverview({
           let targetDatasetName = f.crossDatasetName
           let targetProjectName = selectedProject?.displayName ?? ''
           const isGlobal = !!f.isGlobalReference
-          if (isGlobal && f.crossDatasetName.includes('.')) {
+          if (isGlobal && f.crossDatasetProjectId) {
+            targetProjectId = f.crossDatasetProjectId
+            // crossDatasetName is already resolved to "DisplayName / dataset"
+            const parts = f.crossDatasetName?.split(' / ') ?? []
+            targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
+            const proj = projects?.find((p: any) => p.id === targetProjectId)
+            targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+          } else if (isGlobal && f.crossDatasetName?.includes('.')) {
+            // Fallback for unresolved names (shouldn't happen but safe)
             const [pId, dName] = f.crossDatasetName.split('.')
             targetProjectId = pId
             targetDatasetName = dName
@@ -493,11 +501,16 @@ function OrgOverview({
               let targetProjectId = selectedProject?.id ?? ''
               let targetDatasetName = f.crossDatasetName
               let targetProjectName = selectedProject?.displayName ?? ''
-              if (f.isGlobalReference && f.crossDatasetName.includes('.')) {
+              if (f.isGlobalReference && f.crossDatasetProjectId) {
+                targetProjectId = f.crossDatasetProjectId
+                const parts = f.crossDatasetName?.split(' / ') ?? []
+                targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
+                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
+                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+              } else if (f.isGlobalReference && f.crossDatasetName?.includes('.')) {
                 const [pId, dName] = f.crossDatasetName.split('.')
                 targetProjectId = pId
                 targetDatasetName = dName
-                // Look up project name from projects array
                 const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
                 targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
               }

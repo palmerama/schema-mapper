@@ -501,6 +501,7 @@ function LiveOrgOverviewInner() {
             const projId = parts[0]
             return {
               ...f,
+              crossDatasetProjectId: projId,
               crossDatasetName: `${projName} / ${parts[1]}`,
               crossDatasetTooltip: `Global Document Reference to <strong style="color:#7c3aed">${f.referenceTo || 'unknown'}</strong> in <strong style="color:#7c3aed">${projName}</strong> <span style="opacity:0.7">(${projId})</span>`,
             }

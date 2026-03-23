@@ -112,6 +112,7 @@ interface OrgOverviewProps {
   onSchemaSelect?: (schemaId: string) => void
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
   schemasCache?: Map<string, DiscoveredType[]>
+  deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +166,7 @@ function OrgOverview({
   selectedSchemaId,
   onSchemaSelect,
   schemasCache,
+  deployedSchemasCache,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -440,7 +442,7 @@ function OrgOverview({
   const linkedSchemaStatus = useMemo(() => {
     if (!effectiveTypes || effectiveTypes.length === 0) return undefined
     const seen = new Set<string>()
-    const status: Array<{projectName: string; datasetName: string; isGlobal: boolean; included: boolean}> = []
+    const status: Array<{projectName: string; datasetName: string; schemaName?: string; isGlobal: boolean; included: boolean}> = []
     for (const t of effectiveTypes) {
       for (const f of t.fields) {
         if (f.isCrossDatasetReference && f.crossDatasetName) {
@@ -466,9 +468,15 @@ function OrgOverview({
           const key = `${targetProjectId}::${targetDatasetName}`
           if (!seen.has(key)) {
             seen.add(key)
+            // Show schema/workspace name only when multiple schemas exist for this dataset
+            const linkedDeployed = deployedSchemasCache?.get(key)
+            const linkedSchemaName = linkedDeployed && linkedDeployed.length > 1
+              ? (linkedDeployed[0]?.name || linkedDeployed[0]?.workspace || undefined)
+              : undefined
             status.push({
               projectName: targetProjectName,
               datasetName: targetDatasetName,
+              schemaName: linkedSchemaName,
               isGlobal,
               included: !!schemasCache?.has(key) && (schemasCache?.get(key)?.length ?? 0) > 0,
             })
@@ -477,7 +485,7 @@ function OrgOverview({
       }
     }
     return status.length > 0 ? status : undefined
-  }, [effectiveTypes, selectedProject, projects])
+  }, [effectiveTypes, selectedProject, projects, schemasCache, deployedSchemasCache])
 
   // ---- Send to Sanity handler (enterprise only) ----
   const handleSendToSanity = useCallback(async (excludedLinkedSchemas?: Set<string>): Promise<{ success: boolean; error?: string; status?: number }> => {
@@ -912,12 +920,15 @@ function OrgOverview({
               <span>{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
               <span className="text-muted-foreground">·</span>
               <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+                </>
+              )}
+              {/* Export dropdown — shown in both normal and navigation modes */}
               {selectedProject && (
                 <>
                   <span className="flex-1" />
                   <ExportDropdown
                     graphRef={graphRef}
-                    extraMenuItems={exportMenuItems}
+                    extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
                     onExport={(format) => trackEvent('export_triggered', {
                       format,
                       project_id: selectedProject.id,
@@ -943,8 +954,6 @@ function OrgOverview({
                     }}
                     disabled={graphState.isSearching}
                   />
-                </>
-              )}
                 </>
               )}
             </div>

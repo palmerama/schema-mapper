@@ -18,6 +18,7 @@ interface SendToSanityDialogProps {
   linkedSchemaStatus?: Array<{
     projectName: string
     datasetName: string
+    schemaName?: string
     isGlobal: boolean
     included: boolean
   }>
@@ -148,10 +149,10 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                 <Flex gap={2} align="center">
                   <GoCheckCircleFill size={14} className="shrink-0 text-green-600 dark:text-green-400" />
                   <Text size={1}>
-                    <span className="font-medium">{context.projectName} / {context.datasetName}</span>
-                    {context.workspaceName && context.workspaceName !== 'default' && (
-                      <span className="ml-1 text-muted-foreground">({context.workspaceName})</span>
-                    )}
+                    <span className="font-medium">
+                      {context.projectName} / {context.datasetName}
+                      {context.workspaceName && context.workspaceName !== 'default' ? ' / ' + context.workspaceName : ''}
+                    </span>
                   </Text>
                 </Flex>
 
@@ -181,7 +182,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                       </button>
                       <Text size={1}>
                         <span className={`${isExcluded ? 'text-muted-foreground line-through' : ''} font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
-                          {item.projectName} / {item.datasetName}
+                          {item.projectName} / {item.datasetName}{item.schemaName ? ' / ' + item.schemaName : ''}
                         </span>
                       </Text>
                     </Flex>
@@ -194,7 +195,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
                     <GoAlertFill size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
                     <Text size={1}>
                       <span className={`font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
-                        {item.projectName} / {item.datasetName}
+                        {item.projectName} / {item.datasetName}{item.schemaName ? ' / ' + item.schemaName : ''}
                       </span>
                       <span className="ml-1.5 text-amber-700 dark:text-amber-400">
                         — not visited

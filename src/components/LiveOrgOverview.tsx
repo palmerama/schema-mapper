@@ -795,6 +795,7 @@ function LiveOrgOverviewInner() {
         selectedSchemaId={state.selectedSchemaId}
         onSchemaSelect={handleSchemaSelect}
         schemasCache={state.schemas}
+        deployedSchemasCache={state.deployedSchemas}
       />
     </>
   )

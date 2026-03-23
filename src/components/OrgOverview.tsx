@@ -710,7 +710,7 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 42 : 500 }}
+            style={{ maxHeight: navigationStack.length > 0 ? 0 : (navCollapsed && collapseEnabled ? 42 : 500) }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */

@@ -1,11 +1,11 @@
-import {useState, useEffect, useCallback} from 'react'
+import {useState, useEffect, useCallback, useMemo} from 'react'
 import {Dialog, Box, Text, Stack, Flex, Spinner, Button} from '@sanity/ui'
 import {GoStarFill, GoCheckCircleFill, GoAlertFill} from 'react-icons/go'
 
 interface SendToSanityDialogProps {
   open: boolean
   onClose: () => void
-  onSend: () => Promise<{success: boolean; error?: string; status?: number}>
+  onSend: (excludedLinkedSchemas?: Set<string>) => Promise<{success: boolean; error?: string; status?: number}>
   context: {
     orgName?: string
     projectName: string
@@ -28,12 +28,25 @@ type DialogState = 'idle' | 'sending' | 'success' | 'error'
 export function SendToSanityDialog({open, onClose, onSend, context, linkedSchemaStatus}: SendToSanityDialogProps) {
   const [state, setState] = useState<DialogState>('idle')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [excludedKeys, setExcludedKeys] = useState<Set<string>>(new Set())
+
+  // Included linked schemas (navigated to, toggleable)
+  const includedLinked = useMemo(
+    () => (linkedSchemaStatus || []).filter(s => s.included),
+    [linkedSchemaStatus],
+  )
+  // Missing linked schemas (not visited, not toggleable)
+  const missingLinked = useMemo(
+    () => (linkedSchemaStatus || []).filter(s => !s.included),
+    [linkedSchemaStatus],
+  )
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setState('idle')
       setErrorMessage('')
+      setExcludedKeys(new Set())
     }
   }, [open])
 
@@ -52,7 +65,7 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
     setErrorMessage('')
 
     try {
-      const result = await onSend()
+      const result = await onSend(excludedKeys.size > 0 ? excludedKeys : undefined)
 
       if (result.success) {
         setState('success')
@@ -124,49 +137,79 @@ export function SendToSanityDialog({open, onClose, onSend, context, linkedSchema
               </Text>
             </div>
 
-            {/* Linked schemas status */}
-            {linkedSchemaStatus && linkedSchemaStatus.length > 0 && (() => {
-              const allIncluded = linkedSchemaStatus.every(s => s.included)
-              return (
-                <div
-                  className={`rounded-md border p-3 ${
-                    allIncluded
-                      ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20'
-                      : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20'
-                  }`}
-                >
-                  <Stack space={3}>
-                    <Text size={1} weight="medium" muted>
-                      Linked schemas
-                    </Text>
-                    {linkedSchemaStatus.map((item, i) => (
-                      <Flex key={i} gap={2} align="center">
-                        {item.included ? (
-                          <GoCheckCircleFill size={14} className="shrink-0 text-green-600 dark:text-green-400" />
-                        ) : (
-                          <GoAlertFill size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                        )}
-                        <Text size={1}>
-                          <span className={`font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
-                            {item.projectName} / {item.datasetName}
-                          </span>
-                          {!item.included && (
-                            <span className="ml-1.5 text-amber-700 dark:text-amber-400">
-                              — not visited, navigate there first
-                            </span>
-                          )}
-                        </Text>
-                      </Flex>
-                    ))}
-                    {!allIncluded && (
-                      <Text size={0} muted>
-                        Schemas you haven't visited won't be included. Navigate to them in the graph first, then come back here.
-                      </Text>
+            {/* Datasets included in submission */}
+            <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+              <Stack space={3}>
+                <Text size={1} weight="medium" muted>
+                  Included datasets
+                </Text>
+
+                {/* Current dataset — always included, not toggleable */}
+                <Flex gap={2} align="center">
+                  <GoCheckCircleFill size={14} className="shrink-0 text-green-600 dark:text-green-400" />
+                  <Text size={1}>
+                    <span className="font-medium">{context.projectName} / {context.datasetName}</span>
+                    {context.workspaceName && context.workspaceName !== 'default' && (
+                      <span className="ml-1 text-muted-foreground">({context.workspaceName})</span>
                     )}
-                  </Stack>
-                </div>
-              )
-            })()}
+                  </Text>
+                </Flex>
+
+                {/* Linked schemas that are included — toggleable */}
+                {includedLinked.map((item, i) => {
+                  const key = `${item.projectName}::${item.datasetName}`
+                  const isExcluded = excludedKeys.has(key)
+                  return (
+                    <Flex key={`inc-${i}`} gap={2} align="center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExcludedKeys(prev => {
+                            const next = new Set(prev)
+                            if (next.has(key)) next.delete(key)
+                            else next.add(key)
+                            return next
+                          })
+                        }}
+                        className="shrink-0 focus:outline-none"
+                      >
+                        {isExcluded ? (
+                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                        ) : (
+                          <GoCheckCircleFill size={14} className="text-green-600 dark:text-green-400" />
+                        )}
+                      </button>
+                      <Text size={1}>
+                        <span className={`${isExcluded ? 'text-muted-foreground line-through' : ''} font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
+                          {item.projectName} / {item.datasetName}
+                        </span>
+                      </Text>
+                    </Flex>
+                  )
+                })}
+
+                {/* Linked schemas not visited — not toggleable */}
+                {missingLinked.map((item, i) => (
+                  <Flex key={`miss-${i}`} gap={2} align="center">
+                    <GoAlertFill size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <Text size={1}>
+                      <span className={`font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
+                        {item.projectName} / {item.datasetName}
+                      </span>
+                      <span className="ml-1.5 text-amber-700 dark:text-amber-400">
+                        — not visited
+                      </span>
+                    </Text>
+                  </Flex>
+                ))}
+
+                {missingLinked.length > 0 && (
+                  <Text size={0} muted>
+                    Navigate to unvisited schemas in the graph first to include them.
+                  </Text>
+                )}
+              </Stack>
+            </div>
 
             {/* Privacy note */}
             <Text size={0} muted>

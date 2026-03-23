@@ -460,7 +460,7 @@ function OrgOverview({
   }, [effectiveTypes, selectedProject, projects])
 
   // ---- Send to Sanity handler (enterprise only) ----
-  const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
+  const handleSendToSanity = useCallback(async (excludedLinkedSchemas?: Set<string>): Promise<{ success: boolean; error?: string; status?: number }> => {
     trackEvent('export_triggered', {
       format: 'schema_sent_to_sanity',
       project_id: selectedProject?.id,
@@ -529,7 +529,8 @@ function OrgOverview({
                 targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
               }
               const cacheKey = `${targetProjectId}::${targetDatasetName}`
-              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey)) {
+              const displayKey = `${targetProjectName}::${targetDatasetName}`
+              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey) && !excludedLinkedSchemas?.has(displayKey)) {
                 seen.add(cacheKey)
                 const cachedTypes = schemasCache?.get(cacheKey) || []
                 if (cachedTypes.length > 0) {

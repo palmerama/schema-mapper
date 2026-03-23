@@ -254,13 +254,70 @@ function mapStudioField(
         isReference: true,
         referenceTo: field.to?.[0]?.type,
       }
+    case 'crossDatasetReference':
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'reference',
+        isReference: true,
+        isCrossDatasetReference: true,
+        crossDatasetName: field.dataset || undefined,
+        crossDatasetTooltip: `Cross-dataset reference to <strong style="color:#0d9488">${field.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#0d9488">${field.dataset || 'unknown dataset'}</strong>`,
+        referenceTo: field.to?.[0]?.type,
+      }
+    case 'globalDocumentReference': {
+      const resType = field.resourceType || 'dataset'
+      const isMediaLib = resType === 'media-library'
+      const displayName = isMediaLib ? 'Media Library' : (field.resourceId || field.resourceType || 'external')
+      const tooltipTarget = field.to?.[0]?.type || 'unknown'
+      const tooltipLocation = isMediaLib ? 'Media Library' : (field.resourceId || field.resourceType || 'external resource')
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'reference',
+        isReference: true,
+        isCrossDatasetReference: true,
+        isGlobalReference: true,
+        crossDatasetResourceType: resType,
+        crossDatasetName: displayName,
+        crossDatasetTooltip: isMediaLib
+          ? `Media Library asset reference (<strong style="color:#6b7280">${tooltipTarget}</strong>)`
+          : `Global Document Reference to <strong style="color:#7c3aed">${tooltipTarget}</strong> in <strong style="color:#7c3aed">${tooltipLocation}</strong>`,
+        referenceTo: field.to?.[0]?.type,
+      }
+    }
     case 'array': {
       const ofTypes = field.of || []
       const hasReferences = ofTypes.some((o: any) => o.type === 'reference')
+      const hasCrossDatasetReferences = ofTypes.some((o: any) => o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference')
       const hasBlocks = ofTypes.some(
         (o: any) => o.type === 'block' || o.type === 'portableText',
       )
 
+      if (hasCrossDatasetReferences) {
+        const refItem = ofTypes.find((o: any) => o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference')
+        const isGlobal = refItem?.type === 'globalDocumentReference'
+        const resType = isGlobal ? (refItem?.resourceType || 'dataset') : undefined
+        const isMediaLib = resType === 'media-library'
+        const targetName = isMediaLib ? 'Media Library' : (refItem?.dataset || refItem?.resourceId || refItem?.resourceType || 'external')
+        return {
+          name,
+          title: field.title || undefined,
+          type: 'reference',
+          isReference: true,
+          isArray: true,
+          isCrossDatasetReference: true,
+          isGlobalReference: isGlobal || undefined,
+          crossDatasetResourceType: resType,
+          crossDatasetName: targetName,
+          crossDatasetTooltip: isMediaLib
+            ? `Media Library asset reference (<strong style="color:#6b7280">${refItem?.to?.[0]?.type || 'unknown'}</strong>)`
+            : isGlobal
+              ? `Global Document Reference to <strong style="color:#7c3aed">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#7c3aed">${targetName}</strong>`
+              : `Cross-dataset reference to <strong style="color:#0d9488">${refItem?.to?.[0]?.type || 'unknown'}</strong> in <strong style="color:#0d9488">${targetName}</strong>`,
+          referenceTo: refItem?.to?.[0]?.type,
+        }
+      }
       if (hasReferences) {
         const refItem = ofTypes.find((o: any) => o.type === 'reference')
         const referenceTo = refItem?.to?.[0]?.type || field.to?.[0]?.type

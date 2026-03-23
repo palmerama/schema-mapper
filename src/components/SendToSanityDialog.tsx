@@ -15,11 +15,17 @@ interface SendToSanityDialogProps {
     schemaSource: 'deployed' | 'inferred' | null
     workspaceName?: string
   }
+  linkedSchemaStatus?: Array<{
+    projectName: string
+    datasetName: string
+    isGlobal: boolean
+    included: boolean
+  }>
 }
 
 type DialogState = 'idle' | 'sending' | 'success' | 'error'
 
-export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanityDialogProps) {
+export function SendToSanityDialog({open, onClose, onSend, context, linkedSchemaStatus}: SendToSanityDialogProps) {
   const [state, setState] = useState<DialogState>('idle')
   const [errorMessage, setErrorMessage] = useState<string>('')
 
@@ -106,85 +112,65 @@ export function SendToSanityDialog({open, onClose, onSend, context}: SendToSanit
           </Stack>
         ) : (
           <Stack space={4}>
-            {/* Explanation */}
+            {/* What gets shared */}
             <Text size={1} muted>
-              Sharing your schema map helps your Sanity team understand your content architecture and
-              provide better support and guidance. If you've arranged the boxes to highlight specific relationships, they'll see it exactly as you've laid it out.
+              This shares your schema structure — type definitions, field names, document counts, and project details — so your Sanity team can understand your content architecture. If you've arranged the boxes to highlight specific relationships, they'll see it exactly as you've laid it out.
             </Text>
 
-            {/* What will be sent summary */}
-            <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-900">
-              <Stack space={3}>
-                <Text size={1} weight="medium" muted>
-                  What will be shared:
-                </Text>
-                {context.orgName && (
-                  <Flex gap={2} align="center">
-                    <Text size={1} muted>
-                      Organization:
-                    </Text>
-                    <Text size={1} weight="medium">
-                      {context.orgName}
-                    </Text>
-                  </Flex>
-                )}
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Project:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.projectName}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Dataset:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.datasetName}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Schema types:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.typeCount}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Total documents:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {context.totalDocuments.toLocaleString()}
-                  </Text>
-                </Flex>
-                <Flex gap={2} align="center">
-                  <Text size={1} muted>
-                    Schema source:
-                  </Text>
-                  <Text size={1} weight="medium">
-                    {schemaSourceLabel}
-                  </Text>
-                </Flex>
-                {context.workspaceName && context.workspaceName !== 'default' && (
-                  <Flex gap={2} align="center">
-                    <Text size={1} muted>
-                      Workspace:
-                    </Text>
-                    <Text size={1} weight="medium">
-                      {context.workspaceName}
-                    </Text>
-                  </Flex>
-                )}
-              </Stack>
+            {/* Hero: no content data */}
+            <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 border border-blue-200 dark:border-blue-800">
+              <Text size={1} weight="medium" className="text-blue-800 dark:text-blue-300">
+                No document content is shared — only schema structure and metadata.
+              </Text>
             </div>
+
+            {/* Linked schemas status */}
+            {linkedSchemaStatus && linkedSchemaStatus.length > 0 && (() => {
+              const allIncluded = linkedSchemaStatus.every(s => s.included)
+              return (
+                <div
+                  className={`rounded-md border p-3 ${
+                    allIncluded
+                      ? 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/20'
+                      : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20'
+                  }`}
+                >
+                  <Stack space={3}>
+                    <Text size={1} weight="medium" muted>
+                      Linked schemas
+                    </Text>
+                    {linkedSchemaStatus.map((item, i) => (
+                      <Flex key={i} gap={2} align="center">
+                        {item.included ? (
+                          <GoCheckCircleFill size={14} className="shrink-0 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <GoAlertFill size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                        )}
+                        <Text size={1}>
+                          <span className={`font-medium ${item.isGlobal ? 'text-purple-600 dark:text-purple-400' : 'text-teal-600 dark:text-teal-400'}`}>
+                            {item.projectName} / {item.datasetName}
+                          </span>
+                          {!item.included && (
+                            <span className="ml-1.5 text-amber-700 dark:text-amber-400">
+                              — not visited, navigate there first
+                            </span>
+                          )}
+                        </Text>
+                      </Flex>
+                    ))}
+                    {!allIncluded && (
+                      <Text size={0} muted>
+                        Schemas you haven't visited won't be included. Navigate to them in the graph first, then come back here.
+                      </Text>
+                    )}
+                  </Stack>
+                </div>
+              )
+            })()}
 
             {/* Privacy note */}
             <Text size={0} muted>
-              This sends your schema structure, document counts, and project details to Sanity. <strong className="font-semibold text-foreground">No
-              document content is shared.</strong> Please ensure you're comfortable sharing this information.
+              Please ensure you're comfortable sharing this information.
             </Text>
 
 

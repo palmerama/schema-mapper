@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
-import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight } from 'react-icons/go'
+import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
 import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
@@ -108,6 +108,8 @@ interface OrgOverviewProps {
   deployedSchemas?: DeployedSchemaEntry[]
   selectedSchemaId?: string | null
   onSchemaSelect?: (schemaId: string) => void
+  // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
+  schemasCache?: Map<string, DiscoveredType[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,7 @@ function OrgOverview({
   deployedSchemas,
   selectedSchemaId,
   onSchemaSelect,
+  schemasCache,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -176,7 +179,143 @@ function OrgOverview({
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
+  const [mediaLibraryInfo, setMediaLibraryInfo] = useState<{ fieldName: string; typeName: string } | null>(null)
+  const [inaccessibleInfo, setInaccessibleInfo] = useState<{ projectName: string; datasetName: string } | null>(null)
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
+  const graphStateRef = useRef(graphState)
+  graphStateRef.current = graphState
+  const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
+  const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
+    viewportRef.current = v
+  }, [])
+
+  // ---- Accessible project IDs for cross-dataset lozenge rendering ----
+  const accessibleProjectIds = useMemo(() => new Set(projects.map(p => p.id)), [projects])
+
+  // ---- Media library / inaccessible project handlers ----
+  const handleMediaLibraryClick = useCallback((fieldName: string, typeName: string) => {
+    setMediaLibraryInfo({ fieldName, typeName })
+  }, [])
+
+  const handleInaccessibleClick = useCallback((displayName: string, projectId: string) => {
+    setInaccessibleInfo({ projectName: displayName, datasetName: projectId })
+  }, [])
+
+  // ---- Cross-dataset navigation ----
+  // Saves the current view so we can return to it after following a cross-dataset link
+  interface NavigationEntry {
+    projectId: string
+    datasetName: string
+    schemaId?: string
+    focusedType?: string
+    focusDepth?: 0 | 1 | 2
+    projectName?: string
+    datasetLabel?: string
+    viewport?: { x: number; y: number; zoom: number }
+  }
+  const [navigationStack, setNavigationStack] = useState<NavigationEntry[]>([])
+  const [isGlobalNav, setIsGlobalNav] = useState(false)
+  // Pending navigation — tracks the full target so we can chain: project switch → dataset select → schema load → focus
+  const [pendingNavTarget, setPendingNavTarget] = useState<{
+    datasetName?: string
+    typeName?: string
+    focusDepth?: 0 | 1 | 2
+    waitingForDatasets?: boolean
+  } | null>(null)
+  const [pendingRestoreViewport, setPendingRestoreViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
+
+  const handleCrossDatasetNavigate = useCallback((targetDatasetName: string, targetTypeName?: string, sourceTypeName?: string, projectId?: string) => {
+    // Save current view to stack
+    if (selectedProjectId && selectedDatasetName) {
+      const proj = projects.find(p => p.id === selectedProjectId)
+      // When navigating from search (no focus), save the source type for 0-hop focus on return
+      // When in full graph (no focus, no search), save undefined so back restores full graph
+      const isSearching = graphStateRef.current.isSearching
+      const savedFocusType = graphStateRef.current.focusedType || (isSearching ? sourceTypeName : undefined)
+      const savedFocusDepth = graphStateRef.current.focusedType ? (graphStateRef.current.focusDepth ?? 0) : (isSearching ? 0 : undefined)
+      setNavigationStack(prev => [...prev, {
+        projectId: selectedProjectId,
+        datasetName: selectedDatasetName,
+        schemaId: selectedSchemaId ?? undefined,
+        focusedType: savedFocusType,
+        focusDepth: savedFocusDepth,
+        projectName: (proj as any)?.displayName || selectedProjectId,
+        datasetLabel: selectedDatasetName,
+        viewport: viewportRef.current,
+      }])
+    }
+
+    // Parse target — could be "ProjectName / dataset" (resolved) or just "dataset"
+    const isGlobal = targetDatasetName.indexOf(' / ') !== -1
+    setIsGlobalNav(isGlobal)
+    const slashIdx = targetDatasetName.indexOf(' / ')
+    if (slashIdx !== -1) {
+      // Global ref — need to find the project by display name
+      const projDisplay = targetDatasetName.slice(0, slashIdx)
+      const dsName = targetDatasetName.slice(slashIdx + 3)
+      const targetProject = projects.find(p =>
+        (p as any).displayName === projDisplay || p.id === projDisplay
+      )
+      if (targetProject && targetProject.id !== selectedProjectId) {
+        // Different project — switch project, wait for datasets to load, then select dataset
+        onProjectSelect(targetProject.id)
+        setPendingNavTarget({ datasetName: dsName, typeName: targetTypeName, waitingForDatasets: true })
+      } else {
+        // Same project — just switch dataset
+        onDatasetSelect(dsName)
+        setPendingNavTarget({ typeName: targetTypeName })
+      }
+    } else {
+      // Cross-dataset ref — same project, different dataset
+      onDatasetSelect(targetDatasetName)
+      setPendingNavTarget({ typeName: targetTypeName })
+    }
+  }, [selectedProjectId, selectedDatasetName, selectedSchemaId, projects, onProjectSelect, onDatasetSelect])
+
+  const handleNavigateBack = useCallback(() => {
+    const stack = [...navigationStack]
+    const entry = stack.pop()
+    if (!entry) return
+    setNavigationStack(stack)
+    setIsGlobalNav(false)
+    setPendingRestoreViewport(entry.viewport ?? null)
+
+    // Use '__clear__' sentinel when no focus to restore — tells core to exit any active focus
+    const restoreTypeName = entry.focusedType || '__clear__'
+    const restoreDepth = entry.focusDepth ?? 0
+
+    if (entry.projectId !== selectedProjectId) {
+      onProjectSelect(entry.projectId)
+      setPendingNavTarget({ datasetName: entry.datasetName, typeName: restoreTypeName, focusDepth: restoreDepth, waitingForDatasets: true })
+    } else if (entry.datasetName !== selectedDatasetName) {
+      onDatasetSelect(entry.datasetName)
+      setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
+    } else {
+      setPendingNavTarget({ typeName: restoreTypeName, focusDepth: restoreDepth })
+    }
+  }, [navigationStack, selectedProjectId, selectedDatasetName, onProjectSelect, onDatasetSelect])
+
+  // When datasets load after a cross-project navigation, select the target dataset
+  useEffect(() => {
+    if (!pendingNavTarget?.waitingForDatasets || datasets.length === 0 || !pendingNavTarget.datasetName) return
+    const targetDs = datasets.find(d => d.name === pendingNavTarget.datasetName)
+    if (targetDs) {
+      onDatasetSelect(pendingNavTarget.datasetName)
+      setPendingNavTarget(prev => prev ? { ...prev, waitingForDatasets: false } : null)
+    }
+  }, [datasets, pendingNavTarget, onDatasetSelect])
+
+  // When schema finishes loading after navigation, clear pending after a delay (focus handled by SchemaGraph)
+  useEffect(() => {
+    if (!pendingNavTarget || pendingNavTarget.waitingForDatasets || isSchemasLoading || types.length === 0) return
+    // Types are loaded — clear nav target after viewport restore settles
+    // (pendingFocusType may be undefined for full-graph restore, that's fine)
+    const timer = setTimeout(() => {
+      setPendingNavTarget(null)
+      setPendingRestoreViewport(null)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [pendingNavTarget, isSchemasLoading, types])
 
   // Collapsible nav — collapses to breadcrumb when mouse enters graph area
   // Only enabled when nav content exceeds ~2 rows of tabs
@@ -222,13 +361,25 @@ function OrgOverview({
     }
   }, [collapseEnabled, navCollapsed])
 
-  // Trigger fitView after nav transition completes
+  // Compensate viewport Y to keep visual center stable during nav collapse/expand
+  const graphHeightRef = useRef<number | null>(null)
+  const [viewportNudge, setViewportNudge] = useState<{ dy: number; trigger: number } | null>(null)
   useEffect(() => {
-    const el = navRef.current
-    if (!el) return
-    const handler = () => setFitViewTrigger(c => c + 1)
-    el.addEventListener('transitionend', handler)
-    return () => el.removeEventListener('transitionend', handler)
+    const navEl = navRef.current
+    const graphEl = graphRef.current
+    if (!navEl || !graphEl) return
+    graphHeightRef.current = graphEl.clientHeight
+    const handler = () => {
+      const prevHeight = graphHeightRef.current
+      const newHeight = graphEl.clientHeight
+      if (prevHeight != null && prevHeight !== newHeight) {
+        const delta = newHeight - prevHeight
+        setViewportNudge(prev => ({ dy: delta / 2, trigger: (prev?.trigger ?? 0) + 1 }))
+      }
+      graphHeightRef.current = newHeight
+    }
+    navEl.addEventListener('transitionend', handler)
+    return () => navEl.removeEventListener('transitionend', handler)
   }, [])
   const handleGraphMouseEnter = useCallback(() => {
     if (!collapseEnabled || !selectedProjectId) return
@@ -264,6 +415,49 @@ function OrgOverview({
   const selectedWorkspaceName = showSchemaRow && selectedSchemaId
     ? deployedSchemas!.find(s => s.id === selectedSchemaId)?.name
     : undefined
+
+  // ---- Linked schema status for cross-dataset/global refs ----
+  const linkedSchemaStatus = useMemo(() => {
+    if (!effectiveTypes || effectiveTypes.length === 0) return undefined
+    const seen = new Set<string>()
+    const status: Array<{projectName: string; datasetName: string; isGlobal: boolean; included: boolean}> = []
+    for (const t of effectiveTypes) {
+      for (const f of t.fields) {
+        if (f.isCrossDatasetReference && f.crossDatasetName) {
+          let targetProjectId = selectedProject?.id ?? ''
+          let targetDatasetName = f.crossDatasetName
+          let targetProjectName = selectedProject?.displayName ?? ''
+          const isGlobal = !!f.isGlobalReference
+          if (isGlobal && f.crossDatasetProjectId) {
+            targetProjectId = f.crossDatasetProjectId
+            // crossDatasetName is already resolved to "DisplayName / dataset"
+            const parts = f.crossDatasetName?.split(' / ') ?? []
+            targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
+            const proj = projects?.find((p: any) => p.id === targetProjectId)
+            targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+          } else if (isGlobal && f.crossDatasetName?.includes('.')) {
+            // Fallback for unresolved names (shouldn't happen but safe)
+            const [pId, dName] = f.crossDatasetName.split('.')
+            targetProjectId = pId
+            targetDatasetName = dName
+            const proj = projects?.find((p: any) => p.id === targetProjectId)
+            targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+          }
+          const key = `${targetProjectId}::${targetDatasetName}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            status.push({
+              projectName: targetProjectName,
+              datasetName: targetDatasetName,
+              isGlobal,
+              included: !!schemasCache?.has(key) && (schemasCache?.get(key)?.length ?? 0) > 0,
+            })
+          }
+        }
+      }
+    }
+    return status.length > 0 ? status : undefined
+  }, [effectiveTypes, selectedProject, projects])
 
   // ---- Send to Sanity handler (enterprise only) ----
   const handleSendToSanity = useCallback(async (): Promise<{ success: boolean; error?: string; status?: number }> => {
@@ -306,6 +500,71 @@ function OrgOverview({
         }
       } catch {}
 
+      // Collect linked schemas from cross-dataset/global references
+      const linkedSchemas: Array<{
+        project: { id: string; name: string };
+        dataset: { name: string };
+        types: typeof effectiveTypes;
+      }> = []
+      try {
+        const seen = new Set<string>()
+        for (const t of (effectiveTypes || [])) {
+          for (const f of t.fields) {
+            if (f.isCrossDatasetReference && f.crossDatasetName) {
+              // crossDatasetName is either "datasetName" (cross-dataset) or "projectId.datasetName" (global)
+              let targetProjectId = selectedProject?.id ?? ''
+              let targetDatasetName = f.crossDatasetName
+              let targetProjectName = selectedProject?.displayName ?? ''
+              if (f.isGlobalReference && f.crossDatasetProjectId) {
+                targetProjectId = f.crossDatasetProjectId
+                const parts = f.crossDatasetName?.split(' / ') ?? []
+                targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
+                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
+                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+              } else if (f.isGlobalReference && f.crossDatasetName?.includes('.')) {
+                const [pId, dName] = f.crossDatasetName.split('.')
+                targetProjectId = pId
+                targetDatasetName = dName
+                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
+                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+              }
+              const cacheKey = `${targetProjectId}::${targetDatasetName}`
+              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey)) {
+                seen.add(cacheKey)
+                const cachedTypes = schemasCache?.get(cacheKey) || []
+                if (cachedTypes.length > 0) {
+                  linkedSchemas.push({
+                    project: { id: targetProjectId, name: targetProjectName },
+                    dataset: { name: targetDatasetName },
+                    types: cachedTypes.map(lt => ({
+                      name: lt.name,
+                      ...(lt.title ? { title: lt.title } : {}),
+                      documentCount: lt.documentCount,
+                      fields: lt.fields.map(lf => ({
+                        name: lf.name,
+                        ...(lf.title ? { title: lf.title } : {}),
+                        type: lf.type,
+                        ...(lf.isReference ? { isReference: true, referenceTo: lf.referenceTo } : {}),
+                        ...(lf.isArray ? { isArray: true } : {}),
+                        ...(lf.isInlineObject ? { isInlineObject: true, referenceTo: lf.referenceTo } : {}),
+                        ...(lf.isCrossDatasetReference ? {
+                          isCrossDatasetReference: true,
+                          crossDatasetName: lf.crossDatasetName,
+                          crossDatasetProjectId: lf.crossDatasetProjectId,
+                          referenceTo: lf.referenceTo,
+                          ...(lf.isGlobalReference ? { isGlobalReference: true } : {}),
+                          ...(lf.crossDatasetTooltip ? { crossDatasetTooltip: lf.crossDatasetTooltip } : {}),
+                        } : {}),
+                      })),
+                    })),
+                  })
+                }
+              }
+            }
+          }
+        }
+      } catch {}
+
       const exportCtx = {
         projectName: selectedProject?.displayName ?? '',
         projectId: selectedProject?.id ?? '',
@@ -342,11 +601,20 @@ function OrgOverview({
             ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
             ...(f.isArray ? { isArray: true } : {}),
             ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
+            ...(f.isCrossDatasetReference ? {
+              isCrossDatasetReference: true,
+              crossDatasetName: f.crossDatasetName,
+              crossDatasetProjectId: f.crossDatasetProjectId,
+              referenceTo: f.referenceTo,
+              ...(f.isGlobalReference ? { isGlobalReference: true } : {}),
+              ...(f.crossDatasetTooltip ? { crossDatasetTooltip: f.crossDatasetTooltip } : {}),
+            } : {}),
           })),
         })),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
-        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 1 } : undefined,
+        focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
+        linkedSchemas: linkedSchemas.length > 0 ? linkedSchemas : undefined,
       }
 
       const WORKER_URL = 'https://sanity-enterprise-check.gongapi.workers.dev'
@@ -421,18 +689,37 @@ function OrgOverview({
           <div
             ref={navRef}
             className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ maxHeight: navCollapsed && collapseEnabled ? 36 : 500 }}
+            style={{ maxHeight: (navCollapsed && collapseEnabled) || navigationStack.length > 0 ? 42 : 500 }}
           >
-          {navCollapsed ? (
+          {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
             <div
               className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
               onMouseEnter={() => {
+                if (navigationStack.length > 0) return
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
                 collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
               }}
-              onClick={() => setNavCollapsed(false)}
+              onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
             >
+              {navigationStack.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleNavigateBack() }}
+                  className={"flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-colors mr-1 " + (isGlobalNav ? "bg-purple-50 dark:bg-purple-950/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100" : "bg-teal-50 dark:bg-teal-950/30 border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100")}
+                >
+                  <GoArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to</span>
+                  <span className="font-medium">{navigationStack[navigationStack.length - 1].projectName}</span>
+                  <GoChevronRight className="w-3 h-3 opacity-50" />
+                  <span className="font-medium">{navigationStack[navigationStack.length - 1].datasetLabel}</span>
+                  {navigationStack[navigationStack.length - 1].focusedType && navigationStack[navigationStack.length - 1].focusedType !== '__clear__' && (
+                    <>
+                      <GoChevronRight className="w-3 h-3 opacity-50" />
+                      <span className="font-medium">{navigationStack[navigationStack.length - 1].focusedType}</span>
+                    </>
+                  )}
+                </button>
+              )}
               {selectedProject && (
                 <>
                   <span className="font-normal text-foreground">{selectedProject.displayName}</span>
@@ -637,9 +924,10 @@ function OrgOverview({
           )}
 
           {/* ---- Schema Graph Area ---- */}
+          {/* Cross-dataset navigation bar */}
           <div
             ref={graphRef}
-            className="flex-1 min-h-[500px] mb-[30px] border rounded-lg overflow-hidden"
+            className={"flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden" + (navigationStack.length > 0 ? (" border-2 border-dashed " + (isGlobalNav ? "border-purple-300 dark:border-purple-700" : "border-teal-300 dark:border-teal-700")) : " border")}
             onMouseEnter={handleGraphMouseEnter}
             onMouseLeave={handleGraphMouseLeave}
           >
@@ -653,13 +941,28 @@ function OrgOverview({
                 <p className="text-sm text-muted-foreground">Loading schema…</p>
               </div>
             ) : effectiveTypes.length > 0 ? (
-              <SchemaGraph types={effectiveTypes} onStateChange={setGraphState} fitViewTrigger={fitViewTrigger} />
+              <SchemaGraph
+                types={effectiveTypes}
+                onStateChange={setGraphState}
+                onViewportChange={handleViewportChange}
+                fitViewTrigger={fitViewTrigger}
+                onCrossDatasetNavigate={handleCrossDatasetNavigate}
+                accessibleProjectIds={accessibleProjectIds}
+                onMediaLibraryClick={handleMediaLibraryClick}
+                onInaccessibleClick={handleInaccessibleClick}
+                pendingFocusType={pendingNavTarget?.typeName}
+                pendingFocusDepth={pendingNavTarget?.focusDepth}
+                restoreViewport={pendingRestoreViewport}
+                viewportNudge={viewportNudge}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No types found in this dataset</p>
               </div>
             )}
           </div>
+
+
         </>
       )}
 
@@ -765,8 +1068,40 @@ function OrgOverview({
             schemaSource: effectiveSource,
             workspaceName: selectedWorkspaceName,
           }}
+          linkedSchemaStatus={linkedSchemaStatus}
         />
       )}
+
+      {/* ---- Media Library Info Dialog ---- */}
+      <InfoDialog open={!!mediaLibraryInfo} onClose={() => setMediaLibraryInfo(null)} title="Media Library reference">
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The <span className="font-medium text-foreground">{mediaLibraryInfo?.fieldName}</span> field
+            on <span className="font-medium text-foreground">{mediaLibraryInfo?.typeName}</span> is
+            a <span className="font-medium text-foreground">Global Document Reference</span> pointing
+            to the Sanity Media Library.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Media Library assets are managed separately from document content and are not included in schema mapping.
+          </p>
+        </Stack>
+      </InfoDialog>
+
+      {/* ---- Inaccessible Project Info Dialog ---- */}
+      <InfoDialog open={!!inaccessibleInfo} onClose={() => setInaccessibleInfo(null)} title="Project not accessible">
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This field references data in <span className="font-medium text-foreground">{inaccessibleInfo?.projectName}</span>,
+            but you don&apos;t have access to that project.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Ask a project admin or organization owner for access to view the linked schema.
+          </p>
+          <p className="text-xs text-muted-foreground/70 font-mono">
+            {inaccessibleInfo?.datasetName}
+          </p>
+        </Stack>
+      </InfoDialog>
     </div>
   )
 }

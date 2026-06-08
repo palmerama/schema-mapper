@@ -175,15 +175,16 @@ Tell the user the update is complete.
 Schema Mapper is a standalone Sanity App SDK app. It uses:
 - `sanity.cli.ts` with `app: { organizationId, entry }` config
 - `SanityApp` provider from `@sanity/sdk-react` with explicit `config` prop
-- `useProjects()`, `useDatasets()`, `useClient()` hooks for data fetching
-- `ResourceProvider` to scope hooks to specific project/dataset contexts
+- `useProjects()` and `useClient()` hooks from `@sanity/sdk-react` for project listing and auth
+- Direct `fetch()` calls to the management API (`api.sanity.io/v2024-01-01/projects/{id}/datasets`) with the SDK's auth token — `useDatasets()` from the SDK isn't used because it routes through the project-scoped host
+- `ResourceProvider` to scope hooks to specific project/dataset contexts when needed (e.g. schema discovery)
 
 ### Data Flow
 
-1. `LiveOrgOverview` → `useProjects()` gets all org projects
-2. Per project: `ProjectDatasetsWrapper` → `useDatasets()` inside `ResourceProvider`
-3. Per dataset: `DatasetDiscoveryWrapper` → `useSchemaDiscovery()` samples documents
-4. Results flow up via callbacks → assembled into `ProjectInfo[]`
+1. `LiveOrgOverview` → `useProjects()` gets all org projects, then runs parallel access checks (`useProjectAccess`) to split into accessible vs. locked
+2. On project tab click: lazy fetch of `/projects/{id}/datasets` via management API; results cached per project
+3. On dataset tab click: `ActiveSchemaDiscovery` renders inside a `ResourceProvider` and calls `useSchemaDiscovery()` to fetch deployed schema (if any) or sample documents to infer it
+4. Results stored in a single `useReducer` state machine, surfaced as `ProjectInfo[]` / `DatasetInfo[]`
 5. `OrgOverview` renders navigation and graph as data arrives progressively
 
 ### Key Files
@@ -204,7 +205,7 @@ Schema Mapper is a standalone Sanity App SDK app. It uses:
 
 2. **Chrome LNA headers** — Chrome requires `Access-Control-Allow-Private-Network: true` for localhost. Without it, Sanity auth flow fails. Configured in `sanity.cli.ts` under `vite.server.headers`.
 
-3. **useDatasets() per-project error handling** — `useDatasets()` throws for projects where the user isn't a member. Each call is wrapped in an `ErrorBoundary` that falls back to assuming a `production` dataset.
+3. **Project access checks** — `useProjectAccess` calls `/projects/{id}` and distinguishes 403/404 (no access — project moved to "locked" list) from 429 (rate limited — retry). Each check runs inside its own `ResourceProvider` + `ErrorBoundary` so one project's failure doesn't break the others.
 
 4. **SanityApp needs explicit config prop with projectId only** — `SanityApp` from `@sanity/sdk-react` requires `config` with at least one entry providing `projectId` for auth context. **Do NOT specify a `dataset`** — the SDK opens a real-time listen stream against it on mount, which fires spurious 404s if the project doesn't have a dataset by that name. The actual dataset to render is derived from `useProjects()` / URL params at runtime.
 

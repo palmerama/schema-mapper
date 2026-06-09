@@ -32,7 +32,7 @@ function getStatusCode(err: unknown): number | null {
  * Hook that checks whether the current user has access to a Sanity project.
  *
  * Makes a lightweight GET request to `/projects/{projectId}`. If it succeeds,
- * the user has access. A 403 or 404 means no access (not treated as an error).
+ * the user has access. A 401, 403, or 404 means no access (not treated as an error).
  * A 429 sets error to 'rate_limited' so the caller can retry.
  * Other errors are surfaced as error strings.
  *
@@ -83,8 +83,10 @@ function useProjectAccess(projectId: string, client: SanityClient): ProjectAcces
 
         const statusCode = getStatusCode(err)
 
-        if (statusCode === 403 || statusCode === 404) {
-          // No access — not an error, just no permission
+        if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+          // No access — not an error, just no permission.
+          // 401 = unauthorized (token doesn't grant project access),
+          // 403 = forbidden, 404 = project not visible to this token.
           setHasAccess(false)
           setIsChecking(false)
           setError(null)

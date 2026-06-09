@@ -424,9 +424,20 @@ function LiveOrgOverviewInner({allowedProjectIds}: {allowedProjectIds?: string[]
         })
         .catch((err) => {
           console.error(`[Schema Mapper] Failed to fetch datasets for ${projectId}:`, err)
-          // Don't invent a 'production' dataset — surface the error and show
-          // an empty dataset list. Inventing a dataset that may not exist would
-          // trigger spurious 404 queries against the project.
+          const status = err?.statusCode
+          if (status === 401 || status === 403 || status === 404) {
+            // We thought we had access (the /projects/{id} check returned 200),
+            // but /projects/{id}/datasets is actually denied. This happens for
+            // org-level read roles that don't include dataset-list permission.
+            // Retroactively move the project into the Locked list — the
+            // accessibleProjects/lockedProjects derivation re-buckets on every
+            // accessResults change.
+            dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess: false})
+            dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
+            return
+          }
+          // Genuine failure (500, network, etc.) — show empty dataset list
+          // and stash the error message.
           dispatch({type: 'DATASETS_LOADED', projectId, datasets: []})
           dispatch({type: 'ERROR', key: projectId, error: err?.message || 'Failed to fetch datasets'})
         })

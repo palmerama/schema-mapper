@@ -3,15 +3,20 @@ import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Flex, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
-import type { ExportContext, ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
-import { Skeleton } from '@/components/ui/skeleton'
+import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
-import type { DiscoveredField, DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
+import {
+  collectLinkedSchemas,
+  readDisplaySettings,
+  readNodePositions,
+  serializeType,
+} from '../lib/payload-builders'
+import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
 // Version badge with latest version check
@@ -36,14 +41,13 @@ function useLatestVersion() {
     })
       .then(r => r.json())
       .then(pkg => setLatest(pkg.version))
-      .catch(() => {}) // silent fail
+      .catch((err) => { console.debug('[VersionBadge] latest-version check failed:', err) })
   }, [])
   return latest
 }
 
 function VersionBadge() {
   const latest = useLatestVersion()
-  const isUpToDate = !latest || latest === version || !isNewer(latest, version)
   const hasUpdate = !!latest && isNewer(latest, version)
 
   const tooltipContent = (
@@ -86,33 +90,33 @@ function VersionBadge() {
 // ---------------------------------------------------------------------------
 
 interface OrgOverviewProps {
-  orgId?: string
-  orgName?: string
-  projects: ProjectInfo[]           // accessible projects, each may have isProjectLoading flag
-  lockedProjects: ProjectInfo[]     // confirmed no-access
+  readonly orgId?: string
+  readonly orgName?: string
+  readonly projects: ProjectInfo[]           // accessible projects, each may have isProjectLoading flag
+  readonly lockedProjects: ProjectInfo[]     // confirmed no-access
   // Currently selected
-  selectedProjectId: string | null
-  selectedDatasetName: string | null
+  readonly selectedProjectId: string | null
+  readonly selectedDatasetName: string | null
   // Data for selected project/dataset
-  datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
-  types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
-  schemaSource: 'deployed' | 'inferred' | null
+  readonly datasets: DatasetInfo[]           // for selected project (may be empty if not loaded yet)
+  readonly types: DiscoveredType[]           // for selected dataset (may be empty if not loaded yet)
+  readonly schemaSource: 'deployed' | 'inferred' | null
   // Loading states
-  isCheckingAccess: boolean         // still checking which projects user can access
-  isDatasetsLoading: boolean        // selected project's datasets are loading
-  isSchemasLoading: boolean         // selected dataset's schema is loading
+  readonly isCheckingAccess: boolean         // still checking which projects user can access
+  readonly isDatasetsLoading: boolean        // selected project's datasets are loading
+  readonly isSchemasLoading: boolean         // selected dataset's schema is loading
   // Callbacks — these trigger lazy loading in parent
-  onProjectSelect: (projectId: string) => void
-  onDatasetSelect: (datasetName: string) => void
+  readonly onProjectSelect: (projectId: string) => void
+  readonly onDatasetSelect: (datasetName: string) => void
   // Pending dataset override — tells parent to use this dataset instead of auto-selecting "production"
-  onPendingDataset?: (datasetName: string | null) => void
+  readonly onPendingDataset?: (datasetName: string | null) => void
   // Multi-schema (workspace) support
-  deployedSchemas?: DeployedSchemaEntry[]
-  selectedSchemaId?: string | null
-  onSchemaSelect?: (schemaId: string) => void
+  readonly deployedSchemas?: DeployedSchemaEntry[]
+  readonly selectedSchemaId?: string | null
+  readonly onSchemaSelect?: (schemaId: string) => void
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
-  schemasCache?: Map<string, DiscoveredType[]>
-  deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  readonly schemasCache?: Map<string, DiscoveredType[]>
+  readonly deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +150,12 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
+// Rationale: Top-level render with many conditional UI branches (locked-projects
+// dialog, schema info, ACL info, media-library info, breadcrumb, project tabs,
+// dataset tabs, schema tabs, focus bar, graph, send dialog). Extracting sub-render
+// helpers per branch would not change the structural complexity — these branches
+// share refs/state and are clearer co-located.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function OrgOverview({
   orgId,
   orgName,
@@ -343,7 +353,7 @@ function OrgOverview({
   // Only enabled when nav content exceeds ~2 rows of tabs
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [fitViewTrigger, setFitViewTrigger] = useState(0)
+  const [fitViewTrigger] = useState(0)
   const navRef = useRef<HTMLDivElement>(null)
   const navContentRef = useRef<HTMLDivElement>(null)
   const [navNaturalHeight, setNavNaturalHeight] = useState(0)
@@ -497,149 +507,31 @@ function OrgOverview({
       type_count: effectiveTypes?.length ?? 0,
     })
     try {
-      // Gather display settings
-      const displaySettings: Record<string, unknown> = {}
-      try {
-        const layout = localStorage.getItem('schema-mapper:layoutType')
-        if (layout) displaySettings.layout = layout
-        const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
-        if (edgeStyle) displaySettings.edgeStyle = edgeStyle
-        const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
-        if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
-      } catch {}
-
-      // Extract node positions from the graph
-      const nodePositions: Record<string, { x: number; y: number }> = {}
-      try {
-        const graphEl = graphRef.current
-        if (graphEl) {
-          const nodeEls = graphEl.querySelectorAll('.react-flow__node')
-          nodeEls.forEach((el: Element) => {
-            const htmlEl = el as HTMLElement
-            const nodeId = htmlEl.getAttribute('data-id')
-            if (nodeId) {
-              const transform = htmlEl.style.transform
-              const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
-              if (match) {
-                nodePositions[nodeId] = { x: parseFloat(match[1]), y: parseFloat(match[2]) }
-              }
-            }
-          })
-        }
-      } catch {}
-
-      // Collect linked schemas from cross-dataset/global references
-      const linkedSchemas: Array<{
-        project: { id: string; name: string };
-        dataset: { name: string };
-        types: typeof effectiveTypes;
-      }> = []
-      try {
-        const seen = new Set<string>()
-        for (const t of (effectiveTypes || [])) {
-          for (const f of t.fields) {
-            if (f.isCrossDatasetReference && f.crossDatasetName) {
-              // crossDatasetName is either "datasetName" (cross-dataset) or "projectId.datasetName" (global)
-              let targetProjectId = selectedProject?.id ?? ''
-              let targetDatasetName = f.crossDatasetName
-              let targetProjectName = selectedProject?.displayName ?? ''
-              if (f.isGlobalReference && f.crossDatasetProjectId) {
-                targetProjectId = f.crossDatasetProjectId
-                const parts = f.crossDatasetName?.split(' / ') ?? []
-                targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
-                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
-                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
-              } else if (f.isGlobalReference && f.crossDatasetName?.includes('.')) {
-                const [pId, dName] = f.crossDatasetName.split('.')
-                targetProjectId = pId
-                targetDatasetName = dName
-                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
-                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
-              }
-              const cacheKey = `${targetProjectId}::${targetDatasetName}`
-              const displayKey = `${targetProjectName}::${targetDatasetName}`
-              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey) && !excludedLinkedSchemas?.has(displayKey)) {
-                seen.add(cacheKey)
-                const cachedTypes = schemasCache?.get(cacheKey) || []
-                if (cachedTypes.length > 0) {
-                  linkedSchemas.push({
-                    project: { id: targetProjectId, name: targetProjectName },
-                    dataset: { name: targetDatasetName },
-                    types: cachedTypes.map(lt => ({
-                      name: lt.name,
-                      ...(lt.title ? { title: lt.title } : {}),
-                      documentCount: lt.documentCount,
-                      fields: lt.fields.map(lf => ({
-                        name: lf.name,
-                        ...(lf.title ? { title: lf.title } : {}),
-                        type: lf.type,
-                        ...(lf.isReference ? { isReference: true, referenceTo: lf.referenceTo } : {}),
-                        ...(lf.isArray ? { isArray: true } : {}),
-                        ...(lf.isInlineObject ? { isInlineObject: true, referenceTo: lf.referenceTo } : {}),
-                        ...(lf.isCrossDatasetReference ? {
-                          isCrossDatasetReference: true,
-                          crossDatasetName: lf.crossDatasetName,
-                          crossDatasetProjectId: lf.crossDatasetProjectId,
-                          referenceTo: lf.referenceTo,
-                          ...(lf.isGlobalReference ? { isGlobalReference: true } : {}),
-                          ...(lf.crossDatasetTooltip ? { crossDatasetTooltip: lf.crossDatasetTooltip } : {}),
-                        } : {}),
-                      })),
-                    })),
-                  })
-                }
-              }
-            }
-          }
-        }
-      } catch {}
-
-      const exportCtx = {
-        projectName: selectedProject?.displayName ?? '',
-        projectId: selectedProject?.id ?? '',
-        datasetName: selectedDatasetName ?? '',
-        aclMode: selectedDataset?.aclMode ?? '',
-        totalDocuments: selectedDataset?.totalDocuments ?? 0,
-        schemaSource: effectiveSource,
-        orgId: orgId,
-        orgName: orgName,
-        workspaceName: selectedWorkspaceName,
-      }
+      const displaySettings = readDisplaySettings()
+      const nodePositions = readNodePositions(graphRef.current)
+      const linkedSchemas = collectLinkedSchemas(
+        effectiveTypes,
+        selectedProject?.id ?? '',
+        selectedProject?.displayName ?? '',
+        projects,
+        schemasCache,
+        excludedLinkedSchemas,
+      )
 
       const payload = {
         version: 1,
         appVersion: version,
         exportedAt: new Date().toISOString(),
-        org: exportCtx.orgId ? { id: exportCtx.orgId, name: exportCtx.orgName, isEnterprise: true } : undefined,
-        project: { id: exportCtx.projectId, name: exportCtx.projectName },
+        org: orgId ? { id: orgId, name: orgName, isEnterprise: true } : undefined,
+        project: { id: selectedProject?.id ?? '', name: selectedProject?.displayName ?? '' },
         dataset: {
-          name: exportCtx.datasetName,
-          aclMode: exportCtx.aclMode,
-          totalDocuments: exportCtx.totalDocuments,
-          schemaSource: exportCtx.schemaSource,
+          name: selectedDatasetName ?? '',
+          aclMode: selectedDataset?.aclMode ?? '',
+          totalDocuments: selectedDataset?.totalDocuments ?? 0,
+          schemaSource: effectiveSource,
         },
-        workspace: exportCtx.workspaceName && exportCtx.workspaceName !== 'default' ? exportCtx.workspaceName : undefined,
-        types: (effectiveTypes || []).map(t => ({
-          name: t.name,
-          ...(t.title ? { title: t.title } : {}),
-          documentCount: t.documentCount,
-          fields: t.fields.map(f => ({
-            name: f.name,
-            ...(f.title ? { title: f.title } : {}),
-            type: f.type,
-            ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
-            ...(f.isArray ? { isArray: true } : {}),
-            ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
-            ...(f.isCrossDatasetReference ? {
-              isCrossDatasetReference: true,
-              crossDatasetName: f.crossDatasetName,
-              crossDatasetProjectId: f.crossDatasetProjectId,
-              referenceTo: f.referenceTo,
-              ...(f.isGlobalReference ? { isGlobalReference: true } : {}),
-              ...(f.crossDatasetTooltip ? { crossDatasetTooltip: f.crossDatasetTooltip } : {}),
-            } : {}),
-          })),
-        })),
+        workspace: selectedWorkspaceName && selectedWorkspaceName !== 'default' ? selectedWorkspaceName : undefined,
+        types: (effectiveTypes || []).map(serializeType),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
         focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
@@ -660,9 +552,10 @@ function OrgOverview({
 
       return { success: true }
     } catch (err) {
+      console.warn('[OrgOverview] send to Sanity failed:', err)
       return { success: false, error: 'Network error — please check your connection and try again.' }
     }
-  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState])
+  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState, projects, schemasCache])
 
   // ---- Export menu items (enterprise Send to Sanity) ----
   const exportMenuItems: ExportMenuItem[] | undefined = isEnterprise ? [{
@@ -723,6 +616,9 @@ function OrgOverview({
           {(navCollapsed || navigationStack.length > 0) ? (
             /* ---- Collapsed Breadcrumb ---- */
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Expand navigation"
               className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer select-none"
               onMouseEnter={() => {
                 if (navigationStack.length > 0) return
@@ -730,6 +626,12 @@ function OrgOverview({
                 collapseTimerRef.current = setTimeout(() => setNavCollapsed(false), 400)
               }}
               onClick={() => { if (navigationStack.length === 0) setNavCollapsed(false) }}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && navigationStack.length === 0) {
+                  e.preventDefault()
+                  setNavCollapsed(false)
+                }
+              }}
             >
 
               {selectedProject && (
@@ -754,8 +656,7 @@ function OrgOverview({
           ) : (
           <div ref={navContentRef} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-start py-1.5">
             {/* ---- Project Tabs ---- */}
-            <>
-              <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
+            <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
               <div className="flex items-start gap-2">
                 <TabList space={1}>
                   {projects.map(project => {
@@ -806,7 +707,6 @@ function OrgOverview({
                   </button>
                 )}
               </div>
-            </>
 
             {/* ---- Dataset Tabs ---- */}
             {selectedProjectId && (
@@ -950,7 +850,6 @@ function OrgOverview({
                       workspaceName: selectedWorkspaceName,
                       focusedType: graphState.focusedType,
                       focusDepth: graphState.focusDepth,
-                      totalTypeCount: effectiveTypes.length,
                     }}
                     disabled={graphState.isSearching}
                   />
@@ -970,6 +869,9 @@ function OrgOverview({
             {/* Back bar for cross-dataset navigation */}
             {navigationStack.length > 0 && (
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="Back to previous schema"
                 className={
                   'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer select-none transition-colors'
                   + (isGlobalNav
@@ -977,6 +879,12 @@ function OrgOverview({
                     : ' bg-teal-50 text-teal-700 border-b border-teal-200 hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/70')
                 }
                 onClick={() => handleNavigateBack()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleNavigateBack()
+                  }
+                }}
               >
                 <GoArrowLeft className="text-base" />
                 <span>Back to {navigationStack[navigationStack.length - 1].projectName} / {navigationStack[navigationStack.length - 1].datasetLabel}</span>

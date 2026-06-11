@@ -319,6 +319,10 @@ function ActiveSchemaDiscovery({
 // progressive lazy loading across 3 phases
 // ---------------------------------------------------------------------------
 
+// NOSONAR: Inner component holds all data-fetch effects + the lazy-loading state
+// machine for the live org overview (access checks → datasets → schemas). Splitting
+// would require prop-drilling refs and a reducer dispatch through layers; the
+// state pipeline is clearer kept as one unit. Reducer is already separated above.
 function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?: string[]}>) {
   const allProjects = useProjects()
   const orgId = useDashboardOrganizationId()

@@ -10,6 +10,12 @@ import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mappe
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
+import {
+  collectLinkedSchemas,
+  readDisplaySettings,
+  readNodePositions,
+  serializeType,
+} from '../lib/payload-builders'
 import type { DiscoveredType, DatasetInfo, ProjectInfo, DeployedSchemaEntry } from './types'
 
 // ---------------------------------------------------------------------------
@@ -144,6 +150,11 @@ function EmptyState() {
 // Main Component
 // ---------------------------------------------------------------------------
 
+// NOSONAR: Top-level render with many conditional UI branches (locked-projects
+// dialog, schema info, ACL info, media-library info, breadcrumb, project tabs,
+// dataset tabs, schema tabs, focus bar, graph, send dialog). Extracting sub-render
+// helpers per branch would not change the structural complexity — these branches
+// share refs/state and are clearer co-located.
 function OrgOverview({
   orgId,
   orgName,
@@ -495,149 +506,31 @@ function OrgOverview({
       type_count: effectiveTypes?.length ?? 0,
     })
     try {
-      // Gather display settings
-      const displaySettings: Record<string, unknown> = {}
-      try {
-        const layout = localStorage.getItem('schema-mapper:layoutType')
-        if (layout) displaySettings.layout = layout
-        const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
-        if (edgeStyle) displaySettings.edgeStyle = edgeStyle
-        const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
-        if (spacingMap) displaySettings.spacingMap = JSON.parse(spacingMap)
-      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
-
-      // Extract node positions from the graph
-      const nodePositions: Record<string, { x: number; y: number }> = {}
-      try {
-        const graphEl = graphRef.current
-        if (graphEl) {
-          const nodeEls = graphEl.querySelectorAll('.react-flow__node')
-          const translateRegex = /translate\(([^,]+)px,\s*([^)]+)px\)/
-          nodeEls.forEach((el: Element) => {
-            const htmlEl = el as HTMLElement
-            const nodeId = htmlEl.dataset.id
-            if (nodeId) {
-              const match = translateRegex.exec(htmlEl.style.transform)
-              if (match) {
-                nodePositions[nodeId] = { x: Number.parseFloat(match[1]), y: Number.parseFloat(match[2]) }
-              }
-            }
-          })
-        }
-      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
-
-      // Collect linked schemas from cross-dataset/global references
-      const linkedSchemas: Array<{
-        project: { id: string; name: string };
-        dataset: { name: string };
-        types: typeof effectiveTypes;
-      }> = []
-      try {
-        const seen = new Set<string>()
-        for (const t of (effectiveTypes || [])) {
-          for (const f of t.fields) {
-            if (f.isCrossDatasetReference && f.crossDatasetName) {
-              // crossDatasetName is either "datasetName" (cross-dataset) or "projectId.datasetName" (global)
-              let targetProjectId = selectedProject?.id ?? ''
-              let targetDatasetName = f.crossDatasetName
-              let targetProjectName = selectedProject?.displayName ?? ''
-              if (f.isGlobalReference && f.crossDatasetProjectId) {
-                targetProjectId = f.crossDatasetProjectId
-                const parts = f.crossDatasetName?.split(' / ') ?? []
-                targetDatasetName = parts.length === 2 ? parts[1] : f.crossDatasetName ?? ''
-                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
-                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
-              } else if (f.isGlobalReference && f.crossDatasetName?.includes('.')) {
-                const [pId, dName] = f.crossDatasetName.split('.')
-                targetProjectId = pId
-                targetDatasetName = dName
-                const proj = projects?.find((p: { id: string }) => p.id === targetProjectId)
-                targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
-              }
-              const cacheKey = `${targetProjectId}::${targetDatasetName}`
-              const displayKey = `${targetProjectName}::${targetDatasetName}`
-              if (!seen.has(cacheKey) && schemasCache?.has(cacheKey) && !excludedLinkedSchemas?.has(displayKey)) {
-                seen.add(cacheKey)
-                const cachedTypes = schemasCache?.get(cacheKey) || []
-                if (cachedTypes.length > 0) {
-                  linkedSchemas.push({
-                    project: { id: targetProjectId, name: targetProjectName },
-                    dataset: { name: targetDatasetName },
-                    types: cachedTypes.map(lt => ({
-                      name: lt.name,
-                      ...(lt.title ? { title: lt.title } : {}),
-                      documentCount: lt.documentCount,
-                      fields: lt.fields.map(lf => ({
-                        name: lf.name,
-                        ...(lf.title ? { title: lf.title } : {}),
-                        type: lf.type,
-                        ...(lf.isReference ? { isReference: true, referenceTo: lf.referenceTo } : {}),
-                        ...(lf.isArray ? { isArray: true } : {}),
-                        ...(lf.isInlineObject ? { isInlineObject: true, referenceTo: lf.referenceTo } : {}),
-                        ...(lf.isCrossDatasetReference ? {
-                          isCrossDatasetReference: true,
-                          crossDatasetName: lf.crossDatasetName,
-                          crossDatasetProjectId: lf.crossDatasetProjectId,
-                          referenceTo: lf.referenceTo,
-                          ...(lf.isGlobalReference ? { isGlobalReference: true } : {}),
-                          ...(lf.crossDatasetTooltip ? { crossDatasetTooltip: lf.crossDatasetTooltip } : {}),
-                        } : {}),
-                      })),
-                    })),
-                  })
-                }
-              }
-            }
-          }
-        }
-      } catch (err) { console.debug('[OrgOverview] payload enrichment failed:', err) }
-
-      const exportCtx = {
-        projectName: selectedProject?.displayName ?? '',
-        projectId: selectedProject?.id ?? '',
-        datasetName: selectedDatasetName ?? '',
-        aclMode: selectedDataset?.aclMode ?? '',
-        totalDocuments: selectedDataset?.totalDocuments ?? 0,
-        schemaSource: effectiveSource,
-        orgId: orgId,
-        orgName: orgName,
-        workspaceName: selectedWorkspaceName,
-      }
+      const displaySettings = readDisplaySettings()
+      const nodePositions = readNodePositions(graphRef.current)
+      const linkedSchemas = collectLinkedSchemas(
+        effectiveTypes,
+        selectedProject?.id ?? '',
+        selectedProject?.displayName ?? '',
+        projects,
+        schemasCache,
+        excludedLinkedSchemas,
+      )
 
       const payload = {
         version: 1,
         appVersion: version,
         exportedAt: new Date().toISOString(),
-        org: exportCtx.orgId ? { id: exportCtx.orgId, name: exportCtx.orgName, isEnterprise: true } : undefined,
-        project: { id: exportCtx.projectId, name: exportCtx.projectName },
+        org: orgId ? { id: orgId, name: orgName, isEnterprise: true } : undefined,
+        project: { id: selectedProject?.id ?? '', name: selectedProject?.displayName ?? '' },
         dataset: {
-          name: exportCtx.datasetName,
-          aclMode: exportCtx.aclMode,
-          totalDocuments: exportCtx.totalDocuments,
-          schemaSource: exportCtx.schemaSource,
+          name: selectedDatasetName ?? '',
+          aclMode: selectedDataset?.aclMode ?? '',
+          totalDocuments: selectedDataset?.totalDocuments ?? 0,
+          schemaSource: effectiveSource,
         },
-        workspace: exportCtx.workspaceName && exportCtx.workspaceName !== 'default' ? exportCtx.workspaceName : undefined,
-        types: (effectiveTypes || []).map(t => ({
-          name: t.name,
-          ...(t.title ? { title: t.title } : {}),
-          documentCount: t.documentCount,
-          fields: t.fields.map(f => ({
-            name: f.name,
-            ...(f.title ? { title: f.title } : {}),
-            type: f.type,
-            ...(f.isReference ? { isReference: true, referenceTo: f.referenceTo } : {}),
-            ...(f.isArray ? { isArray: true } : {}),
-            ...(f.isInlineObject ? { isInlineObject: true, referenceTo: f.referenceTo } : {}),
-            ...(f.isCrossDatasetReference ? {
-              isCrossDatasetReference: true,
-              crossDatasetName: f.crossDatasetName,
-              crossDatasetProjectId: f.crossDatasetProjectId,
-              referenceTo: f.referenceTo,
-              ...(f.isGlobalReference ? { isGlobalReference: true } : {}),
-              ...(f.crossDatasetTooltip ? { crossDatasetTooltip: f.crossDatasetTooltip } : {}),
-            } : {}),
-          })),
-        })),
+        workspace: selectedWorkspaceName && selectedWorkspaceName !== 'default' ? selectedWorkspaceName : undefined,
+        types: (effectiveTypes || []).map(serializeType),
         displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
         focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
@@ -661,7 +554,7 @@ function OrgOverview({
       console.warn('[OrgOverview] send to Sanity failed:', err)
       return { success: false, error: 'Network error — please check your connection and try again.' }
     }
-  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState])
+  }, [effectiveTypes, selectedProject, selectedDatasetName, selectedDataset, effectiveSource, orgId, orgName, selectedWorkspaceName, graphRef, graphState, projects, schemasCache])
 
   // ---- Export menu items (enterprise Send to Sanity) ----
   const exportMenuItems: ExportMenuItem[] | undefined = isEnterprise ? [{

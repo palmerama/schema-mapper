@@ -1,0 +1,198 @@
+// Helpers for building the "Send to Sanity" submission payload.
+// Extracted from OrgOverview.tsx to reduce cognitive complexity of handleSendToSanity.
+
+import type {DiscoveredType, ProjectInfo} from '../types'
+
+// ---------------------------------------------------------------------------
+// Display settings — read from localStorage
+// ---------------------------------------------------------------------------
+
+export function readDisplaySettings(): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  try {
+    const layout = localStorage.getItem('schema-mapper:layoutType')
+    if (layout) out.layout = layout
+    const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
+    if (edgeStyle) out.edgeStyle = edgeStyle
+    const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
+    if (spacingMap) out.spacingMap = JSON.parse(spacingMap)
+  } catch (err) {
+    console.debug('[payload-builders] readDisplaySettings failed:', err)
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Node positions — extract from the React Flow DOM
+// ---------------------------------------------------------------------------
+
+const TRANSLATE_RE = /translate\(([^,]+)px,\s*([^)]+)px\)/
+
+export function readNodePositions(
+  graphEl: HTMLElement | null,
+): Record<string, {x: number; y: number}> {
+  const out: Record<string, {x: number; y: number}> = {}
+  if (!graphEl) return out
+  try {
+    const nodeEls = graphEl.querySelectorAll('.react-flow__node')
+    nodeEls.forEach((el: Element) => {
+      const htmlEl = el as HTMLElement
+      const nodeId = htmlEl.dataset.id
+      if (!nodeId) return
+      const match = TRANSLATE_RE.exec(htmlEl.style.transform)
+      if (match) {
+        out[nodeId] = {
+          x: Number.parseFloat(match[1]),
+          y: Number.parseFloat(match[2]),
+        }
+      }
+    })
+  } catch (err) {
+    console.debug('[payload-builders] readNodePositions failed:', err)
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Type serialization — compact form for the submission payload
+// ---------------------------------------------------------------------------
+
+type SerializedField = {
+  name: string
+  title?: string
+  type: string
+  isReference?: boolean
+  referenceTo?: string
+  isArray?: boolean
+  isInlineObject?: boolean
+  isCrossDatasetReference?: boolean
+  crossDatasetName?: string
+  crossDatasetProjectId?: string
+  isGlobalReference?: boolean
+  crossDatasetTooltip?: string
+}
+
+type SerializedType = {
+  name: string
+  title?: string
+  documentCount?: number
+  fields: SerializedField[]
+}
+
+export function serializeField(f: DiscoveredType['fields'][number]): SerializedField {
+  return {
+    name: f.name,
+    ...(f.title ? {title: f.title} : {}),
+    type: f.type,
+    ...(f.isReference ? {isReference: true, referenceTo: f.referenceTo} : {}),
+    ...(f.isArray ? {isArray: true} : {}),
+    ...(f.isInlineObject ? {isInlineObject: true, referenceTo: f.referenceTo} : {}),
+    ...(f.isCrossDatasetReference
+      ? {
+          isCrossDatasetReference: true,
+          crossDatasetName: f.crossDatasetName,
+          crossDatasetProjectId: f.crossDatasetProjectId,
+          referenceTo: f.referenceTo,
+          ...(f.isGlobalReference ? {isGlobalReference: true} : {}),
+          ...(f.crossDatasetTooltip ? {crossDatasetTooltip: f.crossDatasetTooltip} : {}),
+        }
+      : {}),
+  }
+}
+
+export function serializeType(t: DiscoveredType): SerializedType {
+  return {
+    name: t.name,
+    ...(t.title ? {title: t.title} : {}),
+    documentCount: t.documentCount,
+    fields: t.fields.map(serializeField),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cross-dataset / global reference target resolution
+// ---------------------------------------------------------------------------
+
+interface CrossRefTarget {
+  projectId: string
+  datasetName: string
+  projectName: string
+}
+
+function resolveCrossDatasetTarget(
+  f: DiscoveredType['fields'][number],
+  fallbackProjectId: string,
+  fallbackProjectName: string,
+  projects: readonly ProjectInfo[] | undefined,
+): CrossRefTarget {
+  let targetProjectId = fallbackProjectId
+  let targetDatasetName = f.crossDatasetName || ''
+  let targetProjectName = fallbackProjectName
+
+  if (f.isGlobalReference && f.crossDatasetProjectId) {
+    targetProjectId = f.crossDatasetProjectId
+    const parts = f.crossDatasetName?.split(' / ') ?? []
+    targetDatasetName = parts.length === 2 ? parts[1] : (f.crossDatasetName ?? '')
+    const proj = projects?.find((p) => p.id === targetProjectId)
+    targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+  } else if (f.isGlobalReference && f.crossDatasetName?.includes('.')) {
+    const [pId, dName] = f.crossDatasetName.split('.')
+    targetProjectId = pId
+    targetDatasetName = dName
+    const proj = projects?.find((p) => p.id === targetProjectId)
+    targetProjectName = proj?.displayName ?? proj?.id ?? targetProjectId
+  }
+
+  return {projectId: targetProjectId, datasetName: targetDatasetName, projectName: targetProjectName}
+}
+
+// ---------------------------------------------------------------------------
+// Linked schemas — collect cached schemas for every cross-dataset/global ref
+// ---------------------------------------------------------------------------
+
+export interface LinkedSchemaEntry {
+  project: {id: string; name: string}
+  dataset: {name: string}
+  types: SerializedType[]
+}
+
+export function collectLinkedSchemas(
+  effectiveTypes: readonly DiscoveredType[] | undefined,
+  selectedProjectId: string,
+  selectedProjectName: string,
+  projects: readonly ProjectInfo[] | undefined,
+  schemasCache: Map<string, DiscoveredType[]> | undefined,
+  excludedLinkedSchemas: Set<string> | undefined,
+): LinkedSchemaEntry[] {
+  const out: LinkedSchemaEntry[] = []
+  try {
+    const seen = new Set<string>()
+    for (const t of effectiveTypes || []) {
+      for (const f of t.fields) {
+        if (!f.isCrossDatasetReference || !f.crossDatasetName) continue
+        const target = resolveCrossDatasetTarget(
+          f,
+          selectedProjectId,
+          selectedProjectName,
+          projects,
+        )
+        const cacheKey = `${target.projectId}::${target.datasetName}`
+        const displayKey = `${target.projectName}::${target.datasetName}`
+        if (seen.has(cacheKey)) continue
+        if (!schemasCache?.has(cacheKey)) continue
+        if (excludedLinkedSchemas?.has(displayKey)) continue
+        seen.add(cacheKey)
+        const cachedTypes = schemasCache.get(cacheKey) || []
+        if (cachedTypes.length === 0) continue
+        out.push({
+          project: {id: target.projectId, name: target.projectName},
+          dataset: {name: target.datasetName},
+          types: cachedTypes.map(serializeType),
+        })
+      }
+    }
+  } catch (err) {
+    console.debug('[payload-builders] collectLinkedSchemas failed:', err)
+  }
+  return out
+}

@@ -688,7 +688,7 @@ function extractSchemaData(entry: any): any[] {
  *
  * Now also returns all workspace schemas as DeployedSchemaEntry[].
  */
-export function useDeployedSchema(): {
+export function useDeployedSchema(projectId: string, dataset: string): {
   schemas: DeployedSchemaEntry[]
   types: DiscoveredType[]
   isLoading: boolean
@@ -701,9 +701,11 @@ export function useDeployedSchema(): {
   const [error, setError] = useState<Error | null>(null)
   const [hasDeployedSchema, setHasDeployedSchema] = useState(false)
 
-  const client = useClient({apiVersion: '2025-03-01'})
-  const countClient = useClient({apiVersion: '2024-01-01'})
-  const {projectId, dataset} = client.config()
+  // CRITICAL: pass explicit projectId+dataset to every useClient call. Without
+  // them, the SDK falls back to SanityConfig defaults or `undefined`, which
+  // poisons the URL of every downstream management/data API request.
+  const client = useClient({apiVersion: '2025-03-01', projectId, dataset})
+  const countClient = useClient({apiVersion: '2024-01-01', projectId, dataset})
 
   // Store clients in refs so they don't trigger re-runs
   const clientRef = useRef(client)

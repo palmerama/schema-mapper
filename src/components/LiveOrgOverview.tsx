@@ -291,7 +291,7 @@ function ActiveSchemaDiscovery({
   ) => void
   onError: (key: string, error: string) => void
 }>) {
-  const {types, isLoading, error, schemaSource, deployedSchemas} = useSchemaDiscovery()
+  const {types, isLoading, error, schemaSource, deployedSchemas} = useSchemaDiscovery(projectId, datasetName)
   const reportedRef = useRef(false)
   const key = `${projectId}::${datasetName}`
 

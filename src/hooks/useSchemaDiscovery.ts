@@ -152,7 +152,7 @@ async function resolveReferenceTargets(
  * @param enabled - When false, skips the effect and returns empty/loading state.
  *                  Used to sequence after deployed schema resolves.
  */
-function useSchemaDiscoveryInference(enabled: boolean = true): {
+function useSchemaDiscoveryInference(projectId: string, dataset: string, enabled: boolean = true): {
   types: DiscoveredType[]
   isLoading: boolean
   error: Error | null
@@ -160,10 +160,11 @@ function useSchemaDiscoveryInference(enabled: boolean = true): {
   const [types, setTypes] = useState<DiscoveredType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const client = useClient({apiVersion: '2024-01-01'})
+  // CRITICAL: explicit projectId+dataset — never read from client.config()
+  // which can be undefined/wrong when no SanityConfig default exists.
+  const client = useClient({apiVersion: '2024-01-01', projectId, dataset})
   const clientRef = useRef(client)
   clientRef.current = client
-  const {projectId, dataset} = client.config()
 
   useEffect(() => {
     if (!enabled) {
@@ -255,7 +256,7 @@ function useSchemaDiscoveryInference(enabled: boolean = true): {
  * 3. Return both deployedTypes and inferredTypes when available
  * 4. Active types = deployed if available, else inferred
  */
-export function useSchemaDiscovery(): {
+export function useSchemaDiscovery(projectId: string, dataset: string): {
   types: DiscoveredType[]          // currently active types
   isLoading: boolean
   error: Error | null
@@ -265,11 +266,11 @@ export function useSchemaDiscovery(): {
   inferredTypes: DiscoveredType[] | null   // null = still loading
   deployedSchemas: DeployedSchemaEntry[]   // ALL parsed workspace schemas
 } {
-  const deployed = useDeployedSchema()
+  const deployed = useDeployedSchema(projectId, dataset)
 
   // Inference only runs if no deployed schema is available
   const hasDeployedSchema = deployed.hasDeployedSchema && deployed.types.length > 0
-  const inference = useSchemaDiscoveryInference(!deployed.isLoading && !hasDeployedSchema)
+  const inference = useSchemaDiscoveryInference(projectId, dataset, !deployed.isLoading && !hasDeployedSchema)
   const deployedTypes = hasDeployedSchema ? deployed.types : null
   const inferredTypes = !inference.isLoading ? inference.types : null
 

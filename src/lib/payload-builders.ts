@@ -156,6 +156,11 @@ export interface LinkedSchemaEntry {
   types: SerializedType[]
 }
 
+// Rationale: walks every type's cross-dataset/global reference fields and
+// builds a deduplicated list of linked schemas the user might want to include
+// in their export. The classification (CDR vs GDR, included vs excluded,
+// resolved vs unresolved) is inherent to the cross-dataset reference model.
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function collectLinkedSchemas(
   effectiveTypes: readonly DiscoveredType[] | undefined,
   selectedProjectId: string,

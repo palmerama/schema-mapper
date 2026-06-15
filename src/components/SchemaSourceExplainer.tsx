@@ -1,6 +1,7 @@
 import {useState} from 'react'
-import {InfoDialog} from '@sanity-labs/schema-mapper-core'
-import {RiInformationLine} from 'react-icons/ri'
+import {InfoDialog, Badge} from '@sanity-labs/schema-mapper-core'
+import {Stack} from '@sanity/ui'
+import {RiInformationLine, RiAlertFill, RiShieldKeyholeLine, RiCloudOffLine, RiErrorWarningLine} from 'react-icons/ri'
 import type {InferenceReason} from '../types'
 
 interface SchemaSourceExplainerProps {
@@ -21,14 +22,10 @@ interface SchemaSourceExplainerProps {
  * Renders an info icon next to the "schema inferred from documents" badge.
  *
  * Clicking the icon opens a dialog explaining WHY we couldn't show the
- * deployed schema:
- *   - 'permissions' → user lacks a grant; we can't even tell if deployed
- *     schema exists. Different roles may see different things.
- *   - 'no-schema'   → endpoint says nothing's deployed (or Studio < v4.9).
- *   - 'error'       → something else broke (network, 5xx).
- *
- * In all cases the copy stays plain-language for non-admin users, with the
- * technical permissions list tucked into a collapsible section.
+ * deployed schema. Matches the styling of the existing "Schema sources"
+ * dialog (Stack space, rounded muted card with badge header, list-style
+ * bullets). Plain-language copy first; technical permissions list collapsed
+ * behind a toggle so non-admin users aren't overwhelmed.
  */
 export function SchemaSourceExplainer({reason, open, onClose, onOpen}: SchemaSourceExplainerProps) {
   if (!reason) return null
@@ -61,98 +58,165 @@ export function SchemaSourceExplainer({reason, open, onClose, onOpen}: SchemaSou
 }
 
 function ExplainerBody({reason}: {reason: NonNullable<InferenceReason>}) {
+  if (reason === 'permissions') return <PermissionsBody />
+  if (reason === 'no-schema') return <NoSchemaBody />
+  return <GenericErrorBody />
+}
+
+function PermissionsBody() {
   const [permsExpanded, setPermsExpanded] = useState(false)
 
-  if (reason === 'permissions') {
-    return (
-      <div className="text-sm leading-relaxed space-y-4 text-gray-800 dark:text-gray-200">
-        <p>
-          We can&apos;t tell whether a deployed schema exists for this dataset
-          because your account doesn&apos;t have permission to check.
-        </p>
-        <p>
-          Instead, we&apos;re showing types <strong>inferred from the documents
-          you can see</strong>. The visualisation may look different to what an
-          admin or developer sees — including missing field types, references,
-          and validation rules.
-        </p>
-        <p>
-          Ask your project admin to grant you the permissions below if you need
-          the full schema view.
-        </p>
+  return (
+    <Stack space={4}>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Schema Mapper falls back to inference when it can&apos;t read the
+        deployed schema for a dataset. In your case, it&apos;s a
+        permissions issue.
+      </p>
 
-        <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+      <div className="space-y-4">
+        <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300">
+              <RiShieldKeyholeLine className="inline-block mr-1 align-middle" />
+              permissions check failed
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Your account doesn&apos;t have permission to read this dataset&apos;s
+            schema manifest. Because we couldn&apos;t check, we don&apos;t know
+            whether a deployed schema exists at all — so we&apos;re showing
+            types <strong>inferred from the documents you can see</strong>.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The visualisation may look different from what a developer or
+            project admin sees, including missing field types, references,
+            and validation rules.
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Ask the person who set up this project to grant you the
+            permissions listed below if you need the full schema view.
+          </p>
+        </div>
+
+        <div className="rounded-md border px-4 py-3 space-y-2">
           <button
             type="button"
             onClick={() => setPermsExpanded((v) => !v)}
-            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
             aria-expanded={permsExpanded}
           >
             {permsExpanded ? '▾' : '▸'} What permissions do I need?
           </button>
 
           {permsExpanded && (
-            <div className="mt-3 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-              <p>
-                The simplest option: the built-in <strong>Viewer</strong> role at the
-                project or organisation level. This grants everything Schema
-                Mapper needs.
+            <Stack space={3}>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Sanity stores deployed schemas as system documents in the
+                dataset, behind the dataset&apos;s access controls. The exact
+                grant that unlocks them depends on how your project is
+                configured — there isn&apos;t one definitive answer, because
+                Sanity supports both built-in roles and custom roles assembled
+                from individual grants.
               </p>
-              <p>
-                If your admin uses a custom role instead, it needs all three of
-                these grants on the project:
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                A few paths that are known to work:
               </p>
-              <ul className="list-disc pl-5 space-y-1 font-mono text-xs">
-                <li>sanity-project:read</li>
-                <li>sanity-project-datasets:read</li>
-                <li>sanity-document-filter-all-documents:read</li>
+              <ul className="text-sm text-muted-foreground leading-relaxed list-disc pl-5 space-y-1">
+                <li>
+                  <strong>Built-in roles</strong> at the project or organisation
+                  level: typically <strong>Administrator</strong>, or a role with
+                  full document read across the dataset.
+                </li>
+                <li>
+                  <strong>Custom roles</strong> with read on each of:&nbsp;
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">sanity-project</code>,&nbsp;
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">sanity-project-datasets</code>, and&nbsp;
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">sanity-document-filter-all-documents</code>.
+                </li>
+                <li>
+                  For <strong>private datasets</strong>, dataset-member access on
+                  top of the role grants above.
+                </li>
               </ul>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                The third one is needed even for deployed schemas — Sanity
-                stores schema manifests as documents.
+              <p className="text-xs text-muted-foreground">
+                Roles like <strong>Viewer</strong> can sometimes still hit
+                this fallback depending on how grants are configured. If
+                you&apos;re unsure, ask the person who set up your project to
+                test deployed-schema access for your account specifically.
               </p>
-            </div>
+            </Stack>
           )}
         </div>
       </div>
-    )
-  }
+    </Stack>
+  )
+}
 
-  if (reason === 'no-schema') {
-    return (
-      <div className="text-sm leading-relaxed space-y-4 text-gray-800 dark:text-gray-200">
-        <p>
-          There&apos;s no deployed schema for this dataset, so we&apos;re
-          showing types <strong>inferred from your documents</strong>.
-        </p>
-        <p>
-          Inferred schemas show roughly the right shape but miss field types,
-          references, and validation rules. For the richer view, deploy your
-          Studio&apos;s schema manifest.
-        </p>
-        <div className="mt-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-3 font-mono text-xs">
-          npx sanity@latest schema deploy
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Requires Sanity Studio v4.9 or later.
-        </p>
-      </div>
-    )
-  }
-
-  // 'error'
+function NoSchemaBody() {
   return (
-    <div className="text-sm leading-relaxed space-y-4 text-gray-800 dark:text-gray-200">
-      <p>
-        We couldn&apos;t check whether a deployed schema exists for this
-        dataset, so we&apos;re showing types <strong>inferred from your
-        documents</strong> as a fallback.
+    <Stack space={4}>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Schema Mapper falls back to inference when no deployed schema is
+        available for a dataset.
       </p>
-      <p>
-        This usually means a temporary network issue. Reloading the page often
-        resolves it. If the inferred view persists, check the browser console
-        for details.
+
+      <div className="space-y-4">
+        <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300">
+              <RiCloudOffLine className="inline-block mr-1 align-middle" />
+              no deployed schema
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            No schema manifest has been deployed for this dataset yet, so
+            we&apos;re showing types <strong>inferred from your documents</strong>.
+            Inferred schemas show roughly the right shape but miss field types,
+            references, and validation rules.
+          </p>
+        </div>
+
+        <div className="rounded-md border px-4 py-3 space-y-2">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            To get the richer deployed-schema view, deploy your Studio&apos;s
+            schema manifest:
+          </p>
+          <div className="bg-muted rounded-md p-3 font-mono text-xs">
+            npx sanity@latest schema deploy
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Requires Sanity Studio v4.9 or later (live manifests).
+          </p>
+        </div>
+      </div>
+    </Stack>
+  )
+}
+
+function GenericErrorBody() {
+  return (
+    <Stack space={4}>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Schema Mapper couldn&apos;t reach the schema endpoint for this
+        dataset, so it&apos;s falling back to inference.
       </p>
-    </div>
+
+      <div className="space-y-4">
+        <div className="rounded-md border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal dark:bg-amber-900/50 dark:text-amber-300">
+              <RiErrorWarningLine className="inline-block mr-1 align-middle" />
+              temporary error
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This is usually a temporary network or service issue. Reloading
+            the page often resolves it. If the inferred view persists, check
+            the browser console for details.
+          </p>
+        </div>
+      </div>
+    </Stack>
   )
 }

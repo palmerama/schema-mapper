@@ -130,9 +130,11 @@ export function CuratedLayoutDropdown({
         aria-controls="curated-layout-menu"
       />
 
-      {activeLayoutId && isUnlocked && savedIndicator && (
+      {activeLayoutId && (
         <div className="absolute top-full right-0 mt-1 text-[0.65rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
-          {savedIndicator}
+          {isUnlocked
+            ? (savedIndicator || 'Editing (drag nodes to save)')
+            : 'Locked · click the lock icon to edit'}
         </div>
       )}
 

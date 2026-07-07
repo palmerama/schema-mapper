@@ -108,8 +108,8 @@ export function CuratedLayoutDropdown({
     }
   }, [confirmDeleteId, onDelete])
 
-  // Selected: active layout wins; otherwise show "Curated"
-  const tabLabel = activeLayout ? `Curated: ${activeLayout.name}` : 'Curated'
+  // Selected: active layout wins; otherwise show "Saved Layouts"
+  const tabLabel = activeLayout ? `Layout: ${activeLayout.name}` : 'Saved Layouts'
   const tabSelected = Boolean(activeLayoutId)
 
   const savedIndicator = renderSavedIndicator(saveState, lastSavedAt)

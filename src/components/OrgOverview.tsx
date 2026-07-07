@@ -3,11 +3,13 @@ import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
+import { useCuratedLayoutSession } from '../hooks/useCuratedLayoutSession'
+import { CuratedLayoutDropdown } from './CuratedLayoutDropdown'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
 import {
@@ -227,6 +229,30 @@ function OrgOverview({
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
   const graphStateRef = useRef(graphState)
   graphStateRef.current = graphState
+
+  // ---- Curated Layouts session ----
+  const curatedScope = useMemo(() => {
+    if (!orgId || !selectedProjectId || !selectedDatasetName) return null
+    return {
+      orgId,
+      projectId: selectedProjectId,
+      dataset: selectedDatasetName,
+      // Workspace scoping deferred — v1 uses 'default'. Multi-workspace
+      // Studios still see one curated-layouts list per dataset. We can
+      // refine to per-workspace when needed.
+      workspace: 'default',
+    }
+  }, [orgId, selectedProjectId, selectedDatasetName])
+
+  const focusStateForCurated = useMemo(() => {
+    if (!graphState.focusedType) return null
+    return {typeName: graphState.focusedType, depth: (graphState.focusDepth ?? 0) as 0 | 1 | 2}
+  }, [graphState.focusedType, graphState.focusDepth])
+
+  const curatedSession = useCuratedLayoutSession({
+    scope: curatedScope,
+    focusState: focusStateForCurated,
+  })
   const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
   const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
     viewportRef.current = v
@@ -978,6 +1004,47 @@ function OrgOverview({
                 pendingFocusDepth={pendingNavTarget?.focusDepth}
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
+                curatedActive={
+                  curatedSession.activeLayout && curatedSession.activeView
+                    ? {
+                        id: curatedSession.activeLayout._id,
+                        viewKey: curatedSession.viewKey,
+                        positions: curatedSession.activeView.nodePositions,
+                        edgeStyle: curatedSession.activeView.edgeStyle,
+                        spacing: curatedSession.activeView.spacing,
+                      }
+                    : null
+                }
+                curatedEditable={curatedSession.isUnlocked}
+                onCuratedDrag={(positions) => {
+                  const view = curatedSession.activeView
+                  if (!view) return
+                  curatedSession.handleDrag(positions, view.edgeStyle, view.spacing)
+                }}
+                onAlgoOverwriteRequest={curatedSession.requestAlgoOverwrite}
+                curatedSlot={
+                  curatedScope && (
+                    <CuratedLayoutDropdown
+                      layouts={curatedSession.layouts}
+                      loading={curatedSession.loading}
+                      activeLayoutId={curatedSession.activeLayout?._id ?? null}
+                      isUnlocked={curatedSession.isUnlocked}
+                      onSelect={(id) => void curatedSession.selectLayout(id)}
+                      onCreate={() => {
+                        const positions = readNodePositions(graphRef.current)
+                        void curatedSession.create(
+                          {positions, edgeStyle: 'bezier', spacing: 1},
+                          'Untitled layout',
+                        )
+                      }}
+                      onRename={curatedSession.rename}
+                      onDelete={curatedSession.remove}
+                      onToggleLock={curatedSession.toggleLock}
+                      saveState={curatedSession.saveState}
+                      lastSavedAt={curatedSession.lastSavedAt}
+                    />
+                  )
+                }
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -989,6 +1056,52 @@ function OrgOverview({
 
         </>
       )}
+
+      {/* ---- Curated Layout: algo-overwrite confirm ---- */}
+      <InfoDialog
+        open={!!curatedSession.pendingAlgoOverwrite}
+        onClose={curatedSession.dismissAlgoOverwrite}
+        title="Overwrite layout?"
+      >
+        <Stack space={4}>
+          <Text size={1}>
+            Running <strong>{curatedSession.pendingAlgoOverwrite}</strong> will replace the current positions in <strong>{curatedSession.activeLayout?.name}</strong>. This can't be undone.
+          </Text>
+          <Text size={1} muted>
+            You can instead leave <strong>{curatedSession.activeLayout?.name}</strong> alone and view <strong>{curatedSession.pendingAlgoOverwrite}</strong> as a temporary algorithm without saving to your layout.
+          </Text>
+          <Flex gap={2} justify="flex-end">
+            <Button
+              text="Cancel"
+              mode="bleed"
+              onClick={curatedSession.dismissAlgoOverwrite}
+            />
+            <Button
+              text={`Leave ${curatedSession.activeLayout?.name} — view ${curatedSession.pendingAlgoOverwrite}`}
+              mode="ghost"
+              onClick={() => {
+                // Exit curated mode entirely (view the algo standalone)
+                curatedSession.clearSelection()
+                curatedSession.dismissAlgoOverwrite()
+                // Note: SchemaGraph will re-render without curatedActive on
+                // the next tick. The layoutType inside remains whatever it
+                // was — the user can now click their algo of choice freely.
+              }}
+            />
+            <Button
+              text={`Overwrite with ${curatedSession.pendingAlgoOverwrite}`}
+              tone="critical"
+              onClick={() => {
+                // Not wired yet — v1 requires the user to clear+re-run.
+                // TODO: implement in-place algo overwrite (compute algo
+                // positions and PATCH to the current viewKey).
+                curatedSession.dismissAlgoOverwrite()
+              }}
+              disabled
+            />
+          </Flex>
+        </Stack>
+      </InfoDialog>
 
       {/* ---- Schema Info Dialog ---- */}
       <InfoDialog open={showSchemaInfoDialog} onClose={() => setShowSchemaInfoDialog(false)} title="Schema sources">

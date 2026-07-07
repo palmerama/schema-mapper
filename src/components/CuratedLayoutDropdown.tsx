@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
-import {Tab} from '@sanity/ui'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 interface CuratedLayoutDropdownProps {
@@ -114,33 +113,37 @@ export function CuratedLayoutDropdown({
   const tabSelected = Boolean(activeLayoutId)
 
   const savedIndicator = renderSavedIndicator(saveState, lastSavedAt)
+  const statusText = activeLayoutId
+    ? (isUnlocked
+        ? (savedIndicator || 'Editing (drag nodes to save)')
+        : 'Locked · click the lock icon to edit')
+    : ''
 
   return (
-    <div ref={rootRef} className="relative">
-      <Tab
-        id="layout-tab-curated"
-        label={
-          <span className="flex items-center gap-1.5">
-            {activeLayout && (
-              isUnlocked
-                ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" aria-label="Editing" />
-                : <GoLock className="text-sm opacity-70" aria-label="Locked" />
-            )}
-            <span>{tabLabel}</span>
-          </span>
-        }
-        selected={tabSelected}
+    <div ref={rootRef} className="relative flex items-center gap-2">
+      {statusText && (
+        <span className="text-[0.65rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
+          {statusText}
+        </span>
+      )}
+      <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         aria-controls="curated-layout-menu"
-      />
-
-      {activeLayoutId && (
-        <div className="absolute top-full right-0 mt-1 text-[0.65rem] whitespace-nowrap text-gray-500 dark:text-gray-400 pointer-events-none">
-          {isUnlocked
-            ? (savedIndicator || 'Editing (drag nodes to save)')
-            : 'Locked · click the lock icon to edit'}
-        </div>
-      )}
+        aria-expanded={open}
+        className={`flex items-center gap-1.5 pl-2 pr-2.5 py-1 text-sm rounded-md transition-colors ${
+          tabSelected
+            ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
+        }`}
+      >
+        {activeLayout && (
+          isUnlocked
+            ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" aria-label="Editing" />
+            : <GoLock className="text-sm opacity-70" aria-label="Locked" />
+        )}
+        <span>{tabLabel}</span>
+      </button>
 
       {open && (
         <div

@@ -960,6 +960,29 @@ function OrgOverview({
               {selectedProject && (
                 <>
                   <span className="flex-1" />
+                  {curatedScope && (
+                    <CuratedLayoutDropdown
+                      layouts={curatedSession.layouts}
+                      loading={curatedSession.loading}
+                      activeLayoutId={curatedSession.activeLayout?._id ?? null}
+                      isUnlocked={curatedSession.isUnlocked}
+                      onSelect={(id) => void curatedSession.selectLayout(id)}
+                      onCreate={() => {
+                        const positions = readNodePositions(graphRef.current)
+                        const edgeStyle = graphState.edgeStyle || 'bezier'
+                        const spacing = graphState.spacing ?? 1
+                        void curatedSession.create(
+                          {positions, edgeStyle, spacing},
+                          'Untitled layout',
+                        )
+                      }}
+                      onRename={curatedSession.rename}
+                      onDelete={curatedSession.remove}
+                      onToggleLock={curatedSession.toggleLock}
+                      saveState={curatedSession.saveState}
+                      lastSavedAt={curatedSession.lastSavedAt}
+                    />
+                  )}
                   <ExportDropdown
                     graphRef={graphRef}
                     extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
@@ -1058,31 +1081,6 @@ function OrgOverview({
                   curatedSession.handleDrag(positions, edgeStyle, spacing)
                 }}
                 onAlgoOverwriteRequest={curatedSession.requestAlgoOverwrite}
-                curatedSlot={
-                  curatedScope && (
-                    <CuratedLayoutDropdown
-                      layouts={curatedSession.layouts}
-                      loading={curatedSession.loading}
-                      activeLayoutId={curatedSession.activeLayout?._id ?? null}
-                      isUnlocked={curatedSession.isUnlocked}
-                      onSelect={(id) => void curatedSession.selectLayout(id)}
-                      onCreate={() => {
-                        const positions = readNodePositions(graphRef.current)
-                        const edgeStyle = graphState.edgeStyle || 'bezier'
-                        const spacing = graphState.spacing ?? 1
-                        void curatedSession.create(
-                          {positions, edgeStyle, spacing},
-                          'Untitled layout',
-                        )
-                      }}
-                      onRename={curatedSession.rename}
-                      onDelete={curatedSession.remove}
-                      onToggleLock={curatedSession.toggleLock}
-                      saveState={curatedSession.saveState}
-                      lastSavedAt={curatedSession.lastSavedAt}
-                    />
-                  )
-                }
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

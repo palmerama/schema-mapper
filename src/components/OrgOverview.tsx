@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
+import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex, TextInput } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
@@ -230,6 +231,8 @@ function OrgOverview({
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
+  const [showCreateLayoutPrompt, setShowCreateLayoutPrompt] = useState(false)
+  const [newLayoutName, setNewLayoutName] = useState('')
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   // Reason-specific explainer (click i-icon next to inferred badge, OR
@@ -969,13 +972,8 @@ function OrgOverview({
                       isUnlocked={curatedSession.isUnlocked}
                       onSelect={(id) => void curatedSession.selectLayout(id)}
                       onCreate={() => {
-                        const positions = readNodePositions(graphRef.current)
-                        const edgeStyle = graphState.edgeStyle || 'bezier'
-                        const spacing = graphState.spacing ?? 1
-                        void curatedSession.create(
-                          {positions, edgeStyle, spacing},
-                          'Untitled layout',
-                        )
+                        setNewLayoutName('')
+                        setShowCreateLayoutPrompt(true)
                       }}
                       onRename={curatedSession.rename}
                       onDelete={curatedSession.remove}
@@ -1261,17 +1259,75 @@ function OrgOverview({
               onClick={() => setShowUnlockPrompt(false)}
             />
             <Button
+              text="Unlock"
+              icon={GoUnlock}
               tone="primary"
               onClick={() => {
                 curatedSession.toggleLock()
                 setShowUnlockPrompt(false)
               }}
-            >
-              <Flex align="center" gap={2}>
-                <GoUnlock />
-                <span>Unlock</span>
-              </Flex>
-            </Button>
+            />
+          </Flex>
+        </Stack>
+      </InfoDialog>
+
+      <InfoDialog
+        open={showCreateLayoutPrompt}
+        onClose={() => setShowCreateLayoutPrompt(false)}
+        dialogId="create-layout-prompt"
+        width={0}
+        title={
+          <span className="flex items-center gap-2 text-xl font-normal">
+            <PiTreeStructure className="text-lg opacity-80" />
+            Name this layout
+          </span>
+        }
+      >
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Give this layout a name so you can find it again.
+          </p>
+          <TextInput
+            value={newLayoutName}
+            onChange={(e) => setNewLayoutName((e.target as HTMLInputElement).value)}
+            placeholder="e.g. Customer view"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newLayoutName.trim()) {
+                const positions = readNodePositions(graphRef.current)
+                const edgeStyle = graphState.edgeStyle || 'bezier'
+                const spacing = graphState.spacing ?? 1
+                void curatedSession.create(
+                  {positions, edgeStyle, spacing},
+                  newLayoutName.trim(),
+                )
+                setShowCreateLayoutPrompt(false)
+              } else if (e.key === 'Escape') {
+                setShowCreateLayoutPrompt(false)
+              }
+            }}
+          />
+          <Flex gap={2} justify="flex-end">
+            <Button
+              text="Cancel"
+              mode="ghost"
+              onClick={() => setShowCreateLayoutPrompt(false)}
+            />
+            <Button
+              text="Create"
+              tone="primary"
+              disabled={!newLayoutName.trim()}
+              onClick={() => {
+                const positions = readNodePositions(graphRef.current)
+                const edgeStyle = graphState.edgeStyle || 'bezier'
+                const spacing = graphState.spacing ?? 1
+                void curatedSession.create(
+                  {positions, edgeStyle, spacing},
+                  newLayoutName.trim(),
+                )
+                setShowCreateLayoutPrompt(false)
+              }}
+            />
           </Flex>
         </Stack>
       </InfoDialog>

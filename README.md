@@ -60,6 +60,8 @@ The version badge in the app will show a pulsing dot when an update is available
 
 > "Update Schema Mapper"
 
+The agent uses an `rsync` that **excludes `src/App.tsx` and `sanity.cli.ts`**, so your project and org IDs are preserved automatically — no stashing required.
+
 Or manually:
 
 ```bash
@@ -70,7 +72,7 @@ git stash pop            # restores your project/org IDs
 pnpm install
 ```
 
-> **Note:** `sanity.cli.ts` and `src/App.tsx` contain your project and org IDs. The stash/pop preserves these across updates.
+> **Note:** `sanity.cli.ts` and `src/App.tsx` contain your project and org IDs. Both the agent-driven update and the manual stash/pop preserve these across updates.
 
 ## Permissions
 

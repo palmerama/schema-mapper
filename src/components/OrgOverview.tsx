@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FcFlowChart } from 'react-icons/fc'
 import { GoDatabase, GoLock, GoUnlock, GoStarFill, GoChevronRight, GoArrowLeft } from 'react-icons/go'
+import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex, TextInput } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog } from '@sanity-labs/schema-mapper-core'
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
 import { useEnterpriseCheck } from '../hooks/useEnterpriseCheck'
+import { useCuratedLayoutSession } from '../hooks/useCuratedLayoutSession'
+import { CuratedLayoutDropdown } from './CuratedLayoutDropdown'
 import { SendToSanityDialog } from './SendToSanityDialog'
 import { trackEvent, setEnterprise } from '../lib/analytics'
 import {
@@ -45,6 +48,19 @@ function useLatestVersion() {
       .catch((err) => { console.debug('[VersionBadge] latest-version check failed:', err) })
   }, [])
   return latest
+}
+
+/** Display labels for the layout algorithms — mirrors core's layoutLabels. */
+const ALGO_DISPLAY_LABEL: Record<string, string> = {
+  dagre: 'Dagre',
+  layered: 'Layered',
+  force: 'Force',
+  stress: 'Clustered',
+}
+
+function algoDisplayLabel(algo: string | null | undefined): string {
+  if (!algo) return ''
+  return ALGO_DISPLAY_LABEL[algo] || algo
 }
 
 function VersionBadge() {
@@ -214,6 +230,9 @@ function OrgOverview({
   // ---- Dialog state ----
   const [showLockedDialog, setShowLockedDialog] = useState(false)
   const [showSchemaInfoDialog, setShowSchemaInfoDialog] = useState(false)
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
+  const [showCreateLayoutPrompt, setShowCreateLayoutPrompt] = useState(false)
+  const [newLayoutName, setNewLayoutName] = useState('')
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   // Reason-specific explainer (click i-icon next to inferred badge, OR
@@ -227,6 +246,53 @@ function OrgOverview({
   const [graphState, setGraphState] = useState<SchemaGraphState>({ isSearching: false, visibleTypeCount: 0 })
   const graphStateRef = useRef(graphState)
   graphStateRef.current = graphState
+
+  // ---- Curated Layouts session ----
+  const curatedScope = useMemo(() => {
+    if (!orgId || !selectedProjectId || !selectedDatasetName) return null
+    return {
+      orgId,
+      projectId: selectedProjectId,
+      dataset: selectedDatasetName,
+      // Workspace scoping deferred — v1 uses 'default'. Multi-workspace
+      // Studios still see one curated-layouts list per dataset. We can
+      // refine to per-workspace when needed.
+      workspace: 'default',
+    }
+  }, [orgId, selectedProjectId, selectedDatasetName])
+
+  const focusStateForCurated = useMemo(() => {
+    if (!graphState.focusedType) return null
+    return {typeName: graphState.focusedType, depth: (graphState.focusDepth ?? 0) as 0 | 1 | 2}
+  }, [graphState.focusedType, graphState.focusDepth])
+
+  const curatedSession = useCuratedLayoutSession({
+    scope: curatedScope,
+    focusState: focusStateForCurated,
+  })
+
+  // Persist edge-style / spacing changes to the current curated view.
+  // We re-fire the same handleDrag path with the CURRENT positions extracted
+  // from the DOM — piggybacks on the existing debounced save.
+  useEffect(() => {
+    if (!curatedSession.activeLayout || !curatedSession.isUnlocked) return
+    if (!graphState.edgeStyle && graphState.spacing === undefined) return
+    // Only re-save if the style/spacing differ from what's stored — else the
+    // effect would refire on every mount.
+    const stored = curatedSession.activeView
+    const currentStyle = graphState.edgeStyle
+    const currentSpacing = graphState.spacing
+    const changed =
+      (currentStyle && stored && currentStyle !== stored.edgeStyle) ||
+      (currentSpacing !== undefined && stored && currentSpacing !== stored.spacing)
+    if (!changed) return
+    const positions = readNodePositions(graphRef.current)
+    curatedSession.handleDrag(
+      positions,
+      currentStyle || (stored?.edgeStyle ?? 'bezier'),
+      currentSpacing ?? (stored?.spacing ?? 1),
+    )
+  }, [graphState.edgeStyle, graphState.spacing, curatedSession.activeLayout, curatedSession.isUnlocked, curatedSession.activeView, curatedSession])
   const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
   const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
     viewportRef.current = v
@@ -397,7 +463,7 @@ function OrgOverview({
   // Only enabled when nav content exceeds ~2 rows of tabs
   const [navCollapsed, setNavCollapsed] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [fitViewTrigger] = useState(0)
+  const [fitViewTrigger, setFitViewTrigger] = useState(0)
   const navRef = useRef<HTMLDivElement>(null)
   const navContentRef = useRef<HTMLDivElement>(null)
   const [navNaturalHeight, setNavNaturalHeight] = useState(0)
@@ -898,6 +964,24 @@ function OrgOverview({
               {selectedProject && (
                 <>
                   <span className="flex-1" />
+                  {curatedScope && (
+                    <CuratedLayoutDropdown
+                      layouts={curatedSession.layouts}
+                      loading={curatedSession.loading}
+                      activeLayoutId={curatedSession.activeLayout?._id ?? null}
+                      isUnlocked={curatedSession.isUnlocked}
+                      onSelect={(id) => void curatedSession.selectLayout(id)}
+                      onCreate={() => {
+                        setNewLayoutName('')
+                        setShowCreateLayoutPrompt(true)
+                      }}
+                      onRename={curatedSession.rename}
+                      onDelete={curatedSession.remove}
+                      onToggleLock={curatedSession.toggleLock}
+                      saveState={curatedSession.saveState}
+                      lastSavedAt={curatedSession.lastSavedAt}
+                    />
+                  )}
                   <ExportDropdown
                     graphRef={graphRef}
                     extraMenuItems={navigationStack.length > 0 ? undefined : exportMenuItems}
@@ -978,6 +1062,31 @@ function OrgOverview({
                 pendingFocusDepth={pendingNavTarget?.focusDepth}
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
+                curatedActive={
+                  curatedSession.activeLayout
+                    ? {
+                        id: curatedSession.activeLayout._id,
+                        viewKey: curatedSession.viewKey,
+                        positions: curatedSession.activeView?.nodePositions ?? {},
+                        edgeStyle: curatedSession.activeView?.edgeStyle ?? (graphState.edgeStyle || 'bezier'),
+                        spacing: curatedSession.activeView?.spacing ?? (graphState.spacing ?? 1),
+                        // Full views map so SchemaGraph can resolve positions by its own focus state,
+                        // avoiding the parent-emit → prop-update lag.
+                        views: curatedSession.activeLayout.views,
+                      }
+                    : null
+                }
+                curatedEditable={curatedSession.isUnlocked}
+                onCuratedDrag={(positions) => {
+                  const edgeStyle = graphState.edgeStyle || curatedSession.activeView?.edgeStyle || 'bezier'
+                  const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1
+                  curatedSession.handleDrag(positions, edgeStyle, spacing)
+                }}
+                onCuratedExitForAlgo={curatedSession.clearSelection}
+                onLockedInteraction={() => setShowUnlockPrompt(true)}
+                curatedRestoreVersion={curatedSession.curatedRestoreVersion}
+                restoreFocus={curatedSession.pendingFocusRestore}
+                restoreFocusVersion={curatedSession.focusRestoreVersion}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -1124,6 +1233,102 @@ function OrgOverview({
           <p className="text-xs text-muted-foreground/70 font-mono">
             {inaccessibleInfo?.datasetName}
           </p>
+        </Stack>
+      </InfoDialog>
+
+      <InfoDialog
+        open={showUnlockPrompt}
+        onClose={() => setShowUnlockPrompt(false)}
+        dialogId="unlock-layout-prompt"
+        width={0}
+        title={
+          <span className="flex items-center gap-2 text-xl font-normal">
+            <GoLock className="text-lg opacity-80" />
+            Unlock this layout?
+          </span>
+        }
+      >
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            You'll be able to drag nodes and change focus. Edits save automatically.
+          </p>
+          <Flex gap={2} justify="flex-end">
+            <Button
+              text="Cancel"
+              mode="ghost"
+              onClick={() => setShowUnlockPrompt(false)}
+            />
+            <Button
+              text="Unlock"
+              icon={GoUnlock}
+              tone="primary"
+              onClick={() => {
+                curatedSession.toggleLock()
+                setShowUnlockPrompt(false)
+              }}
+            />
+          </Flex>
+        </Stack>
+      </InfoDialog>
+
+      <InfoDialog
+        open={showCreateLayoutPrompt}
+        onClose={() => setShowCreateLayoutPrompt(false)}
+        dialogId="create-layout-prompt"
+        width={0}
+        title={
+          <span className="flex items-center gap-2 text-xl font-normal">
+            <PiTreeStructure className="text-lg opacity-80" />
+            Name this layout
+          </span>
+        }
+      >
+        <Stack space={4}>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Give this layout a name so you can find it again.
+          </p>
+          <TextInput
+            value={newLayoutName}
+            onChange={(e) => setNewLayoutName((e.target as HTMLInputElement).value)}
+            placeholder="e.g. Customer view"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newLayoutName.trim()) {
+                const positions = readNodePositions(graphRef.current)
+                const edgeStyle = graphState.edgeStyle || 'bezier'
+                const spacing = graphState.spacing ?? 1
+                void curatedSession.create(
+                  {positions, edgeStyle, spacing},
+                  newLayoutName.trim(),
+                )
+                setShowCreateLayoutPrompt(false)
+              } else if (e.key === 'Escape') {
+                setShowCreateLayoutPrompt(false)
+              }
+            }}
+          />
+          <Flex gap={2} justify="flex-end">
+            <Button
+              text="Cancel"
+              mode="ghost"
+              onClick={() => setShowCreateLayoutPrompt(false)}
+            />
+            <Button
+              text="Create"
+              tone="primary"
+              disabled={!newLayoutName.trim()}
+              onClick={() => {
+                const positions = readNodePositions(graphRef.current)
+                const edgeStyle = graphState.edgeStyle || 'bezier'
+                const spacing = graphState.spacing ?? 1
+                void curatedSession.create(
+                  {positions, edgeStyle, spacing},
+                  newLayoutName.trim(),
+                )
+                setShowCreateLayoutPrompt(false)
+              }}
+            />
+          </Flex>
         </Stack>
       </InfoDialog>
     </div>

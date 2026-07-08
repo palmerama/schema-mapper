@@ -94,7 +94,7 @@ export function useCuratedLayoutSession({
     setIsUnlocked(false)
     setSaveState('idle')
     setLastSavedAt(null)
-  }, [scope?.orgId, scope?.projectId, scope?.dataset, scope?.workspace])
+  }, [scope?.orgId, scope?.projectId, scope?.dataset])
 
   // --- Selection ---
 

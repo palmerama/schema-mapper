@@ -27,7 +27,6 @@ export type CuratedLayout = CuratedLayoutSummary & {
   orgId: string
   projectId: string
   dataset: string
-  workspace: string
   views: Record<string, CuratedView>
   /**
    * Last-active focus for this layout. When the user re-selects the layout,
@@ -41,7 +40,6 @@ export type CuratedScope = {
   orgId: string
   projectId: string
   dataset: string
-  workspace: string
 }
 
 /**
@@ -64,7 +62,7 @@ type State = {
 }
 
 const scopeKey = (s: CuratedScope) =>
-  `${s.orgId}::${s.projectId}::${s.dataset}::${s.workspace || 'default'}`
+  `${s.orgId}::${s.projectId}::${s.dataset}`
 
 /**
  * List curated layouts for the given scope. Also exposes CRUD helpers that
@@ -84,7 +82,6 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
       url.searchParams.set('orgId', scope.orgId)
       url.searchParams.set('projectId', scope.projectId)
       url.searchParams.set('dataset', scope.dataset)
-      url.searchParams.set('workspace', scope.workspace || 'default')
       // Explicit — matches the worker default but insulates against later drift.
       url.searchParams.set('scope', 'customer')
       const res = await fetch(url.toString())
@@ -112,7 +109,6 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
       if (!scope) throw new Error('No scope')
       const body = {
         ...scope,
-        workspace: scope.workspace || 'default',
         name,
         createdBy,
         views: {[initialView.viewKey]: initialView.view},

@@ -254,11 +254,10 @@ function OrgOverview({
       orgId,
       projectId: selectedProjectId,
       dataset: selectedDatasetName,
-      // Workspace scoping deferred — v1 uses 'default'. Multi-workspace
-      // Studios still see one curated-layouts list per dataset. We can
-      // refine to per-workspace when needed.
-      workspace: 'default',
     }
+    // Workspace intentionally NOT in the scope key. Sanity workspaces are
+    // Studio config only; the deployed schema manifest is per (project, dataset).
+    // One curated-layouts list per (org, project, dataset).
   }, [orgId, selectedProjectId, selectedDatasetName])
 
   const focusStateForCurated = useMemo(() => {

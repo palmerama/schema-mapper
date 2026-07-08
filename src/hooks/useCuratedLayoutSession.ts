@@ -61,6 +61,10 @@ export function useCuratedLayoutSession({
    */
   const [focusRestoreVersion, setFocusRestoreVersion] = useState(0)
   const [pendingFocusRestore, setPendingFocusRestore] = useState<{typeName: string; depth: 0 | 1 | 2} | null>(null)
+  // Bumped whenever we want the graph to re-apply the current activeLayout
+  // snapshot (positions, edge style, spacing). E.g. on unlock, to discard
+  // any drift-while-locked.
+  const [curatedRestoreVersion, setCuratedRestoreVersion] = useState(0)
 
   const viewKey: ViewKey = useMemo(() => makeViewKey(focusState), [focusState])
 
@@ -105,6 +109,7 @@ export function useCuratedLayoutSession({
       // Version bump forces re-fire when re-selecting the same layout.
       setPendingFocusRestore(layout?.lastFocus ?? null)
       setFocusRestoreVersion((v) => v + 1)
+      setCuratedRestoreVersion((v) => v + 1)
     } catch (err) {
       console.warn('[curatedSession] load failed:', err)
       setActiveLayout(null)
@@ -118,11 +123,33 @@ export function useCuratedLayoutSession({
     setSaveState('idle')
   }, [])
 
-  // --- Toggle lock — only one row unlocked at a time. Because we hold at
-  //     most one active layout in state, "toggle" just flips isUnlocked.
-  const toggleLock = useCallback(() => {
-    setIsUnlocked((u) => !u)
-  }, [])
+  // --- Toggle lock ---
+  //
+  // Locking is a straight state flip. UNlocking is different: the user may
+  // have browsed around while locked (changed focus, moved around), and we
+  // don't want that in-flight state to become the "editing baseline". So
+  // unlock RE-FETCHES the layout and re-fires the restore signals — same
+  // code path as selectLayout — before flipping isUnlocked to true.
+  const toggleLock = useCallback(async () => {
+    if (isUnlocked) {
+      setIsUnlocked(false)
+      return
+    }
+    if (!activeLayout) return
+    // Re-load the layout so any drift-while-locked is discarded.
+    try {
+      const layout = await fetchCuratedLayout(activeLayout._id)
+      setActiveLayout(layout)
+      setPendingFocusRestore(layout?.lastFocus ?? null)
+      setFocusRestoreVersion((v) => v + 1)
+      setCuratedRestoreVersion((v) => v + 1)
+      setSaveState('idle')
+      setLastSavedAt(null)
+    } catch (err) {
+      console.warn('[curatedSession] unlock-reload failed:', err)
+    }
+    setIsUnlocked(true)
+  }, [isUnlocked, activeLayout])
 
   // --- Rename / delete pass-throughs ---
 
@@ -265,5 +292,6 @@ export function useCuratedLayoutSession({
     // Focus restore (populated after selectLayout when the layout has a saved lastFocus)
     pendingFocusRestore,
     focusRestoreVersion,
+    curatedRestoreVersion,
   }
 }

@@ -1083,6 +1083,7 @@ function OrgOverview({
                 }}
                 onCuratedExitForAlgo={curatedSession.clearSelection}
                 onLockedInteraction={() => setShowUnlockPrompt(true)}
+                curatedRestoreVersion={curatedSession.curatedRestoreVersion}
                 restoreFocus={curatedSession.pendingFocusRestore}
                 restoreFocusVersion={curatedSession.focusRestoreVersion}
               />

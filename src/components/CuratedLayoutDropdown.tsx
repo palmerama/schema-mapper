@@ -125,13 +125,16 @@ export function CuratedLayoutDropdown({
   const tabSelected = Boolean(activeLayoutId)
   const layoutCount = layouts.length
   const hasTeamShared = layouts.some(isSAShared)
+  const activeIsTeamShared = activeLayout ? isSAShared(activeLayout) : false
 
   const savedIndicatorText = renderSavedIndicator(saveState, lastSavedAt)
 
   // Build the status JSX (icon + text) for the space to the left of the button
   let statusNode: ReactNode = null
   if (activeLayoutId) {
-    if (!isUnlocked) {
+    if (activeIsTeamShared) {
+      statusNode = <span>Shared by your Sanity team · read-only</span>
+    } else if (!isUnlocked) {
       statusNode = <span>Locked · click the lock icon to edit</span>
     } else if (saveState === 'saving') {
       statusNode = (
@@ -179,7 +182,16 @@ export function CuratedLayoutDropdown({
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
       >
-        {activeLayout && (
+        {activeLayout && activeIsTeamShared && (
+          <span
+            className="inline-flex p-0.5 text-purple-600 dark:text-purple-400"
+            aria-label="Shared by your Sanity team"
+            title="Shared by your Sanity team — read-only"
+          >
+            <GoGift className="text-sm" />
+          </span>
+        )}
+        {activeLayout && !activeIsTeamShared && (
           <span
             role="button"
             tabIndex={0}

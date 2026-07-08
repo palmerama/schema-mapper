@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
+import {Save} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
 
 interface CuratedLayoutDropdownProps {
@@ -132,9 +133,11 @@ export function CuratedLayoutDropdown({
         aria-controls="curated-layout-menu"
         aria-expanded={open}
         className={`flex items-center gap-1.5 pl-2 pr-2.5 py-1 text-sm rounded-md transition-colors ${
-          tabSelected
-            ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
+          activeLayout && isUnlocked
+            ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+            : tabSelected
+              ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
       >
         {activeLayout && (
@@ -160,6 +163,9 @@ export function CuratedLayoutDropdown({
               ? <GoUnlock className="text-sm text-orange-500 dark:text-orange-400" />
               : <GoLock className="text-sm opacity-70" />}
           </span>
+        )}
+        {!activeLayout && (
+          <Save className="w-3.5 h-3.5 opacity-70" strokeWidth={2} aria-hidden="true" />
         )}
         <span>{tabLabel}</span>
       </button>

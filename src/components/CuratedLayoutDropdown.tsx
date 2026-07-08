@@ -1,9 +1,18 @@
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
+import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX, GoGift} from 'react-icons/go'
 import {PiTreeStructure} from 'react-icons/pi'
 import {Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
+
+/**
+ * SA-owned layouts shared with the customer render as read-only.
+ * A layout is "SA-shared" when scope === 'internal' AND sharedWithCustomer === true.
+ * The customer app filters these via the worker but we double-check here.
+ */
+function isSAShared(l: CuratedLayoutSummary): boolean {
+  return l.scope === 'internal' && l.sharedWithCustomer === true
+}
 
 interface CuratedLayoutDropdownProps {
   readonly layouts: CuratedLayoutSummary[]
@@ -218,6 +227,7 @@ export function CuratedLayoutDropdown({
               const isEditing = isActive && isUnlocked
               const isRenaming = renamingId === l._id
               const isConfirmingDelete = confirmDeleteId === l._id
+              const saShared = isSAShared(l)
               return (
                 <div
                   key={l._id}
@@ -232,27 +242,37 @@ export function CuratedLayoutDropdown({
                     if ((e.target as HTMLElement).closest('.dropdown-action')) return
                     onSelect(l._id)
                   }}
+                  title={saShared ? 'Shared by your Sanity SA — read-only' : undefined}
                 >
-                  {/* Lock/unlock icon */}
-                  <button
-                    type="button"
-                    className="dropdown-action p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
-                    title={isEditing ? 'Lock layout' : 'Unlock to edit'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!isActive) onSelect(l._id)
-                      onToggleLock()
-                    }}
-                  >
-                    {isEditing ? (
-                      <GoUnlock className="text-sm text-orange-600 dark:text-orange-400" />
-                    ) : (
-                      <GoLock className="text-sm text-gray-400 dark:text-gray-500" />
-                    )}
-                  </button>
+                  {/* Lock/unlock icon (SA-shared: purple gift icon instead) */}
+                  {saShared ? (
+                    <span
+                      className="p-0.5 flex-shrink-0 text-purple-600 dark:text-purple-400"
+                      aria-label="Shared by your Sanity SA"
+                    >
+                      <GoGift className="text-sm" />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="dropdown-action p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+                      title={isEditing ? 'Lock layout' : 'Unlock to edit'}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!isActive) onSelect(l._id)
+                        onToggleLock()
+                      }}
+                    >
+                      {isEditing ? (
+                        <GoUnlock className="text-sm text-orange-600 dark:text-orange-400" />
+                      ) : (
+                        <GoLock className="text-sm text-gray-400 dark:text-gray-500" />
+                      )}
+                    </button>
+                  )}
 
-                  {/* Name (or rename input) */}
-                  {isRenaming ? (
+                  {/* Name (or rename input). SA-shared: no rename. */}
+                  {isRenaming && !saShared ? (
                     <input
                       autoFocus
                       value={renameValue}
@@ -267,18 +287,24 @@ export function CuratedLayoutDropdown({
                   ) : (
                     <div
                       className="flex-1 min-w-0 truncate select-none"
-                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}`}
+                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}${saShared ? ' (shared by your Sanity SA)' : ''}`}
                       onDoubleClick={(e) => {
+                        if (saShared) return
                         e.stopPropagation()
                         startRename(l)
                       }}
                     >
                       {l.name}
+                      {saShared && (
+                        <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-medium">
+                          SA
+                        </span>
+                      )}
                     </div>
                   )}
 
-                  {/* Row action icons */}
-                  {isConfirmingDelete ? (
+                  {/* Row action icons — hidden for SA-shared layouts */}
+                  {!saShared && (isConfirmingDelete ? (
                     <div className="flex items-center gap-0.5 dropdown-action">
                       <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
                       <button
@@ -331,7 +357,7 @@ export function CuratedLayoutDropdown({
                         </button>
                       </div>
                     )
-                  )}
+                  ))}
                 </div>
               )
             })}

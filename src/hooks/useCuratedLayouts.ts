@@ -16,6 +16,10 @@ export type CuratedLayoutSummary = {
   createdAt: string
   updatedAt: string
   createdBy?: string
+  /** Where this layout was created. Legacy docs default to 'customer'. */
+  scope?: 'customer' | 'internal'
+  /** SA-owned layout that has been toggled visible to the customer. Only meaningful when scope === 'internal'. */
+  sharedWithCustomer?: boolean
 }
 
 export type CuratedLayout = CuratedLayoutSummary & {
@@ -81,6 +85,8 @@ export function useCuratedLayouts(scope: CuratedScope | null) {
       url.searchParams.set('projectId', scope.projectId)
       url.searchParams.set('dataset', scope.dataset)
       url.searchParams.set('workspace', scope.workspace || 'default')
+      // Explicit — matches the worker default but insulates against later drift.
+      url.searchParams.set('scope', 'customer')
       const res = await fetch(url.toString())
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()

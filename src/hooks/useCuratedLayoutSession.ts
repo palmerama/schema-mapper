@@ -136,6 +136,10 @@ export function useCuratedLayoutSession({
       return
     }
     if (!activeLayout) return
+    // SA-shared layouts are read-only for the customer — never unlock.
+    if (activeLayout.scope === 'internal' && activeLayout.sharedWithCustomer === true) {
+      return
+    }
     // Re-load the layout so any drift-while-locked is discarded.
     try {
       const layout = await fetchCuratedLayout(activeLayout._id)

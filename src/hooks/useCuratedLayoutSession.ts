@@ -94,7 +94,12 @@ export function useCuratedLayoutSession({
     setIsUnlocked(false)
     setSaveState('idle')
     setLastSavedAt(null)
-  }, [scope?.orgId, scope?.projectId, scope?.dataset, scope?.workspace])
+    // Also clear the imperative focus-restore signal so any freshly-mounted
+    // SchemaGraph doesn't pick up the previous scope's lastFocus.
+    setPendingFocusRestore(null)
+    setFocusRestoreVersion((v) => v + 1)
+    setCuratedRestoreVersion((v) => v + 1)
+  }, [scope?.orgId, scope?.projectId, scope?.dataset])
 
   // --- Selection ---
 
@@ -136,6 +141,10 @@ export function useCuratedLayoutSession({
       return
     }
     if (!activeLayout) return
+    // SA-shared layouts are read-only for the customer — never unlock.
+    if (activeLayout.scope === 'internal' && activeLayout.sharedWithCustomer === true) {
+      return
+    }
     // Re-load the layout so any drift-while-locked is discarded.
     try {
       const layout = await fetchCuratedLayout(activeLayout._id)
@@ -179,13 +188,23 @@ export function useCuratedLayoutSession({
       name,
       {viewKey, view},
       currentUserId,
+      focusState,
     )
     setActiveLayout(created)
     setIsUnlocked(true) // newly-created starts editable
     setSaveState('saved')
     setLastSavedAt(Date.now())
+    // Belt-and-braces: force focus to persist across the create transition.
+    // Without this, effect ordering in the child + emit-up race on parent's
+    // graphState can lose focus even though the doc was created with the
+    // right lastFocus. Bumping restoreFocusVersion re-fires handleFocus
+    // imperatively after the new activeLayout has propagated.
+    if (focusState) {
+      setPendingFocusRestore(focusState)
+      setFocusRestoreVersion((v) => v + 1)
+    }
     return created
-  }, [list, viewKey, currentUserId])
+  }, [list, viewKey, currentUserId, focusState])
 
   // --- Debounced auto-save on drag ---
 

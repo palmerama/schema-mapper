@@ -1,9 +1,18 @@
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX} from 'react-icons/go'
+import {GoPlus, GoLock, GoUnlock, GoPencil, GoTrash, GoCheck, GoX, GoGift} from 'react-icons/go'
 import {PiTreeStructure} from 'react-icons/pi'
 import {Loader2, CheckCircle2, XCircle} from 'lucide-react'
 import type {CuratedLayoutSummary} from '../hooks/useCuratedLayouts'
+
+/**
+ * Layouts shared by your Sanity team (scope === 'internal' &&
+ * sharedWithCustomer === true) render as read-only.
+ * The customer app filters these via the worker but we double-check here.
+ */
+function isSAShared(l: CuratedLayoutSummary): boolean {
+  return l.scope === 'internal' && l.sharedWithCustomer === true
+}
 
 interface CuratedLayoutDropdownProps {
   readonly layouts: CuratedLayoutSummary[]
@@ -114,13 +123,18 @@ export function CuratedLayoutDropdown({
   // Selected: active layout wins; otherwise show "Saved Layouts"
   const tabLabel = activeLayout ? `Layout: ${activeLayout.name}` : 'Saved Layouts'
   const tabSelected = Boolean(activeLayoutId)
+  const layoutCount = layouts.length
+  const hasTeamShared = layouts.some(isSAShared)
+  const activeIsTeamShared = activeLayout ? isSAShared(activeLayout) : false
 
   const savedIndicatorText = renderSavedIndicator(saveState, lastSavedAt)
 
   // Build the status JSX (icon + text) for the space to the left of the button
   let statusNode: ReactNode = null
   if (activeLayoutId) {
-    if (!isUnlocked) {
+    if (activeIsTeamShared) {
+      statusNode = <span>Shared by your Sanity team · read-only</span>
+    } else if (!isUnlocked) {
       statusNode = <span>Locked · click the lock icon to edit</span>
     } else if (saveState === 'saving') {
       statusNode = (
@@ -168,7 +182,16 @@ export function CuratedLayoutDropdown({
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
         }`}
       >
-        {activeLayout && (
+        {activeLayout && activeIsTeamShared && (
+          <span
+            className="inline-flex p-0.5 text-purple-600 dark:text-purple-400"
+            aria-label="Shared by your Sanity team"
+            title="Shared by your Sanity team — read-only"
+          >
+            <GoGift className="text-sm" />
+          </span>
+        )}
+        {activeLayout && !activeIsTeamShared && (
           <span
             role="button"
             tabIndex={0}
@@ -196,6 +219,23 @@ export function CuratedLayoutDropdown({
           <PiTreeStructure className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
         )}
         <span>{tabLabel}</span>
+        {/* Count badge — only when not showing a specific active layout */}
+        {!activeLayout && layoutCount > 0 && (
+          <span
+            className="ml-1 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[0.65rem] font-medium rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+            aria-label={`${layoutCount} saved layout${layoutCount === 1 ? '' : 's'}`}
+          >
+            {layoutCount}
+          </span>
+        )}
+        {/* Team-shared indicator — always shown when any layout is shared, so users know something's waiting */}
+        {!activeLayout && hasTeamShared && (
+          <GoGift
+            className="ml-0.5 text-sm text-purple-600 dark:text-purple-400"
+            aria-label="Shared by your Sanity team"
+            title="Something has been shared with you by your Sanity team"
+          />
+        )}
       </button>
 
       {open && (
@@ -218,6 +258,7 @@ export function CuratedLayoutDropdown({
               const isEditing = isActive && isUnlocked
               const isRenaming = renamingId === l._id
               const isConfirmingDelete = confirmDeleteId === l._id
+              const saShared = isSAShared(l)
               return (
                 <div
                   key={l._id}
@@ -232,27 +273,37 @@ export function CuratedLayoutDropdown({
                     if ((e.target as HTMLElement).closest('.dropdown-action')) return
                     onSelect(l._id)
                   }}
+                  title={saShared ? 'Shared by your Sanity team — read-only' : undefined}
                 >
-                  {/* Lock/unlock icon */}
-                  <button
-                    type="button"
-                    className="dropdown-action p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
-                    title={isEditing ? 'Lock layout' : 'Unlock to edit'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!isActive) onSelect(l._id)
-                      onToggleLock()
-                    }}
-                  >
-                    {isEditing ? (
-                      <GoUnlock className="text-sm text-orange-600 dark:text-orange-400" />
-                    ) : (
-                      <GoLock className="text-sm text-gray-400 dark:text-gray-500" />
-                    )}
-                  </button>
+                  {/* Lock/unlock icon (team-shared: purple gift icon instead) */}
+                  {saShared ? (
+                    <span
+                      className="p-0.5 flex-shrink-0 text-purple-600 dark:text-purple-400"
+                      aria-label="Shared by your Sanity team"
+                    >
+                      <GoGift className="text-sm" />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="dropdown-action p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+                      title={isEditing ? 'Lock layout' : 'Unlock to edit'}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!isActive) onSelect(l._id)
+                        onToggleLock()
+                      }}
+                    >
+                      {isEditing ? (
+                        <GoUnlock className="text-sm text-orange-600 dark:text-orange-400" />
+                      ) : (
+                        <GoLock className="text-sm text-gray-400 dark:text-gray-500" />
+                      )}
+                    </button>
+                  )}
 
-                  {/* Name (or rename input) */}
-                  {isRenaming ? (
+                  {/* Name (or rename input). Team-shared: no rename. */}
+                  {isRenaming && !saShared ? (
                     <input
                       autoFocus
                       value={renameValue}
@@ -267,18 +318,24 @@ export function CuratedLayoutDropdown({
                   ) : (
                     <div
                       className="flex-1 min-w-0 truncate select-none"
-                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}`}
+                      title={`${l.name}${l.createdBy ? ` — by ${l.createdBy}` : ''}${saShared ? ' (shared by your Sanity team)' : ''}`}
                       onDoubleClick={(e) => {
+                        if (saShared) return
                         e.stopPropagation()
                         startRename(l)
                       }}
                     >
                       {l.name}
+                      {saShared && (
+                        <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-medium">
+                          Team
+                        </span>
+                      )}
                     </div>
                   )}
 
-                  {/* Row action icons */}
-                  {isConfirmingDelete ? (
+                  {/* Row action icons — hidden for team-shared layouts (customer can't edit) */}
+                  {!saShared && (isConfirmingDelete ? (
                     <div className="flex items-center gap-0.5 dropdown-action">
                       <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
                       <button
@@ -331,7 +388,7 @@ export function CuratedLayoutDropdown({
                         </button>
                       </div>
                     )
-                  )}
+                  ))}
                 </div>
               )
             })}

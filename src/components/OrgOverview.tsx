@@ -233,6 +233,17 @@ function OrgOverview({
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false)
   const [showCreateLayoutPrompt, setShowCreateLayoutPrompt] = useState(false)
   const [newLayoutName, setNewLayoutName] = useState('')
+  const newLayoutInputRef = useRef<HTMLInputElement>(null)
+  // Autofocus doesn't stick when the dialog mounts (portal steals focus).
+  // Do it imperatively after the dialog is fully open.
+  useEffect(() => {
+    if (!showCreateLayoutPrompt) return
+    const t = setTimeout(() => {
+      newLayoutInputRef.current?.focus()
+      newLayoutInputRef.current?.select()
+    }, 50)
+    return () => clearTimeout(t)
+  }, [showCreateLayoutPrompt])
   const [showAclDialog, setShowAclDialog] = useState(false)
   const [showSendDialog, setShowSendDialog] = useState(false)
   // Reason-specific explainer (click i-icon next to inferred badge, OR
@@ -254,11 +265,10 @@ function OrgOverview({
       orgId,
       projectId: selectedProjectId,
       dataset: selectedDatasetName,
-      // Workspace scoping deferred — v1 uses 'default'. Multi-workspace
-      // Studios still see one curated-layouts list per dataset. We can
-      // refine to per-workspace when needed.
-      workspace: 'default',
     }
+    // Workspace intentionally NOT in the scope key. Sanity workspaces are
+    // Studio config only; the deployed schema manifest is per (project, dataset).
+    // One curated-layouts list per (org, project, dataset).
   }, [orgId, selectedProjectId, selectedDatasetName])
 
   const focusStateForCurated = useMemo(() => {
@@ -1288,10 +1298,10 @@ function OrgOverview({
             Give this layout a name so you can find it again.
           </p>
           <TextInput
+            ref={newLayoutInputRef}
             value={newLayoutName}
             onChange={(e) => setNewLayoutName((e.target as HTMLInputElement).value)}
             placeholder="e.g. Customer view"
-            autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newLayoutName.trim()) {
                 const positions = readNodePositions(graphRef.current)

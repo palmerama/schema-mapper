@@ -94,6 +94,11 @@ export function useCuratedLayoutSession({
     setIsUnlocked(false)
     setSaveState('idle')
     setLastSavedAt(null)
+    // Also clear the imperative focus-restore signal so any freshly-mounted
+    // SchemaGraph doesn't pick up the previous scope's lastFocus.
+    setPendingFocusRestore(null)
+    setFocusRestoreVersion((v) => v + 1)
+    setCuratedRestoreVersion((v) => v + 1)
   }, [scope?.orgId, scope?.projectId, scope?.dataset])
 
   // --- Selection ---

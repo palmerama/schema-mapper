@@ -1234,10 +1234,21 @@ function OrgOverview({
         </Stack>
       </InfoDialog>
 
-      <InfoDialog open={showUnlockPrompt} onClose={() => setShowUnlockPrompt(false)} title="Unlock this layout?">
+      <InfoDialog
+        open={showUnlockPrompt}
+        onClose={() => setShowUnlockPrompt(false)}
+        dialogId="unlock-layout-prompt"
+        width={0}
+        title={
+          <span className="flex items-center gap-2 text-xl font-normal">
+            <GoLock className="text-lg opacity-80" />
+            Unlock this layout?
+          </span>
+        }
+      >
         <Stack space={4}>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            This layout is locked to protect its arrangement. Unlock it to focus on types, drag nodes, or change the layout — your changes will be saved automatically.
+            You'll be able to drag nodes and change focus. Edits save automatically.
           </p>
           <Flex gap={2} justify="flex-end">
             <Button
@@ -1246,13 +1257,17 @@ function OrgOverview({
               onClick={() => setShowUnlockPrompt(false)}
             />
             <Button
-              text="Unlock"
               tone="primary"
               onClick={() => {
                 curatedSession.toggleLock()
                 setShowUnlockPrompt(false)
               }}
-            />
+            >
+              <Flex align="center" gap={2}>
+                <GoUnlock />
+                <span>Unlock</span>
+              </Flex>
+            </Button>
           </Flex>
         </Stack>
       </InfoDialog>

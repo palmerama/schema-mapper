@@ -170,10 +170,12 @@ async function createCuratedLayout(body, token) {
     createdAt: now,
     updatedAt: now,
     createdBy: body.createdBy,
-    views: body.views || {},
+    views: body.views
+      ? Object.fromEntries(Object.entries(body.views).map(([k, v]) => [encodeViewKey(k), v]))
+      : {},
   }
   await sanityMutate([{create: doc}], token)
-  return doc
+  return {...doc, views: translateStoredViews(doc.views)}
 }
 
 async function patchCuratedLayout(id, patch, token) {
@@ -193,15 +195,39 @@ async function patchCuratedLayout(id, patch, token) {
   return {id, ...set}
 }
 
+// View-key sanitization: Sanity mutation set-paths don't accept ':' in
+// keys (illegal GROQ token). We accept "typeName:depth" on the wire but
+// normalize to "typeName__depth" before touching Sanity storage. Reads
+// translate back so the client contract is unchanged.
+function encodeViewKey(k) {
+  return String(k).replace(/:/g, '__')
+}
+function decodeStoredViewKey(k) {
+  // Only translate the LAST '__' back to ':' (in case a real type name
+  // contains '__'). Depths are single digits 0-2 so no ambiguity in practice.
+  const m = /^(.*)__(\d+)$/.exec(k)
+  return m ? `${m[1]}:${m[2]}` : k
+}
+function translateStoredViews(views) {
+  if (!views || typeof views !== 'object') return views || {}
+  const out = {}
+  for (const k of Object.keys(views)) out[decodeStoredViewKey(k)] = views[k]
+  return out
+}
+
 async function patchCuratedLayoutView(id, viewKey, view, token) {
   // Patch a single view without overwriting other views.
-  // Uses Sanity's key-path patch (set on views.<viewKey>).
+  // Uses Sanity's key-path patch. viewKey may arrive URL-encoded from the
+  // client — decode first, then normalize ':' → '__' for storage.
+  let decodedKey = viewKey
+  try { decodedKey = decodeURIComponent(viewKey) } catch { /* keep raw */ }
+  const storageKey = encodeViewKey(decodedKey)
   const set = {
     updatedAt: new Date().toISOString(),
-    [`views.${viewKey}`]: view,
+    [`views.${storageKey}`]: view,
   }
   await sanityMutate([{patch: {id, set}}], token)
-  return {id, viewKey}
+  return {id, viewKey: decodedKey}
 }
 
 async function deleteCuratedLayout(id, token) {
@@ -235,6 +261,7 @@ async function handleCuratedLayoutsRoute(request, url, env) {
   if (request.method === 'GET' && id && !isViewSubroute) {
     const layout = await getCuratedLayout(id, token)
     if (!layout) return json({error: 'Not found'}, {status: 404})
+    if (layout.views) layout.views = translateStoredViews(layout.views)
     return json({layout})
   }
 

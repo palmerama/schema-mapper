@@ -1072,6 +1072,9 @@ function OrgOverview({
                         positions: curatedSession.activeView?.nodePositions ?? {},
                         edgeStyle: curatedSession.activeView?.edgeStyle ?? (graphState.edgeStyle || 'bezier'),
                         spacing: curatedSession.activeView?.spacing ?? (graphState.spacing ?? 1),
+                        // Full views map so SchemaGraph can resolve positions by its own focus state,
+                        // avoiding the parent-emit → prop-update lag.
+                        views: curatedSession.activeLayout.views,
                       }
                     : null
                 }

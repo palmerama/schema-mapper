@@ -1099,6 +1099,10 @@ function OrgOverview({
                     : null
                 }
                 curatedEditable={curatedSession.isUnlocked}
+                curatedReadOnly={
+                  curatedSession.activeLayout?.scope === 'internal' &&
+                  curatedSession.activeLayout?.sharedWithCustomer === true
+                }
                 onCuratedDrag={(positions) => {
                   const edgeStyle = graphState.edgeStyle || curatedSession.activeView?.edgeStyle || 'bezier'
                   const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1

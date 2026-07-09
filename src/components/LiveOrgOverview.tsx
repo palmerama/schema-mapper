@@ -186,10 +186,13 @@ function reducer(state: State, action: Action): State {
       let nextSelectedSchemaId = state.selectedSchemaId
       if (action.deployedSchemas && action.deployedSchemas.length > 0) {
         nextDeployedSchemas.set(action.key, action.deployedSchemas)
-        // Auto-select when this is the active dataset and multiple schemas exist
+        // Auto-select when this is the active dataset and multiple schemas
+        // exist. Single-schema datasets don't need a selection (no tab row
+        // rendered) and their curated-layouts scope stays schemaId-less to
+        // remain compatible with legacy docs saved before schemaId existed.
         if (action.deployedSchemas.length > 1 && action.key === `${state.selectedProjectId}::${state.selectedDatasetName}`) {
           const defaultSchema = action.deployedSchemas.find(s => s.workspace === 'default')
-          nextSelectedSchemaId = defaultSchema ? defaultSchema.id : action.deployedSchemas[0].id
+          nextSelectedSchemaId = (defaultSchema ?? action.deployedSchemas[0]).id
         }
       }
       return {
@@ -222,12 +225,28 @@ function reducer(state: State, action: Action): State {
         selectedSchemaId: null,    // reset schema selection when project changes
       }
 
-    case 'SELECT_DATASET':
+    case 'SELECT_DATASET': {
+      // If the target dataset has 2+ deployed schemas cached (user navigated
+      // away and back), auto-select the default/first so the scope key is
+      // stable and downstream state (curated layouts, schema graph) always
+      // has a schemaId. Fresh datasets hit SCHEMA_LOADED where the same
+      // auto-select runs. Single-schema datasets stay with schemaId=null
+      // (no tab row, curated scope stays schemaId-less for legacy compat).
+      let nextSelectedSchemaId: string | null = null
+      if (state.selectedProjectId && action.datasetName) {
+        const key = `${state.selectedProjectId}::${action.datasetName}`
+        const cached = state.deployedSchemas.get(key)
+        if (cached && cached.length > 1) {
+          const defaultSchema = cached.find(s => s.workspace === 'default')
+          nextSelectedSchemaId = (defaultSchema ?? cached[0]).id
+        }
+      }
       return {
         ...state,
         selectedDatasetName: action.datasetName,
-        selectedSchemaId: null,    // reset schema selection when dataset changes
+        selectedSchemaId: nextSelectedSchemaId,
       }
+    }
 
     case 'SELECT_SCHEMA': {
       // Find the deployed schema entry and update the active types

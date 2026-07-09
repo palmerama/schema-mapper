@@ -145,14 +145,18 @@ function computeNavMaxHeight(
   navigationStackLength: number,
   navCollapsed: boolean,
   collapseEnabled: boolean,
-): number {
-  if (navigationStackLength > 0) return 0
-  if (navCollapsed && collapseEnabled) return 42
-  return 500
+): string {
+  if (navigationStackLength > 0) return '0px'
+  if (navCollapsed && collapseEnabled) return '42px'
+  // Expanded: cap at viewport height so the collapse animation still works,
+  // but nav gets whatever it actually needs. Sanity org has dozens of
+  // projects that wrap to many rows. Graph below is flex-1 min-h-0 and
+  // shrinks accordingly.
+  return '100vh'
 }
 
 function computeGraphContainerClass(navigationStackLength: number, isGlobalNav: boolean): string {
-  const base = 'flex-1 min-h-[500px] mb-[30px] rounded-lg overflow-hidden'
+  const base = 'flex-1 min-h-0 mb-[30px] rounded-lg overflow-hidden'
   if (navigationStackLength === 0) return `${base} border`
   const accentColor = isGlobalNav
     ? 'border-purple-300 dark:border-purple-700'
@@ -767,7 +771,7 @@ function OrgOverview({
           {/* ---- Navigation: Full Grid or Collapsed Breadcrumb ---- */}
           <div
             ref={navRef}
-            className="overflow-hidden transition-all duration-300 ease-in-out"
+            className="overflow-hidden transition-all duration-300 ease-in-out flex-shrink-0"
             style={{ maxHeight: computeNavMaxHeight(navigationStack.length, navCollapsed, collapseEnabled) }}
           >
           {(navCollapsed || navigationStack.length > 0) ? (

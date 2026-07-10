@@ -356,7 +356,7 @@ function OrgOverview({
   // (which is fully rendered but covered by a fade-out overlay).
   const PROJECTS_ROW_PX = 28 + 4
   const PROJECTS_VISIBLE_ROWS = 3 // 3 full rows + a peek row fully rendered but faded out
-  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 22
+  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 12
   // Threshold for "there IS more content below" — if scrollHeight exceeds
   // the room a 3-row cap would give, we have overflow worth expanding.
   const PROJECTS_OVERFLOW_THRESHOLD_PX = 3 * PROJECTS_ROW_PX + 2
@@ -933,17 +933,15 @@ function OrgOverview({
                     )
                   })}
                 </TabList>
-                {/* Fade-out overlay covering the 4th row when collapsed
+                {/* Fade-out overlay covering the peek row when collapsed
                     and there's more below. Also blocks pointer events on
                     the peek row so users can't click a half-hidden tab. */}
                 {!showAllProjects && projectsOverflow && (
-                  <>
-                    <div
-                      className="pointer-events-auto absolute left-0 right-0 z-[5] bg-gradient-to-b from-transparent to-white dark:to-[#101112]"
-                      style={{ bottom: 0, height: `${PROJECTS_ROW_PX}px` }}
-                      aria-hidden="true"
-                    />
-                  </>
+                  <div
+                    className="pointer-events-auto absolute left-0 right-0 z-[5] bg-gradient-to-b from-white/30 to-white dark:from-[#101112]/30 dark:to-[#101112]"
+                    style={{ bottom: 0, height: '25px' }}
+                    aria-hidden="true"
+                  />
                 )}
                 </div>
                   {(projectsOverflow || showAllProjects) && (

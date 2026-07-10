@@ -40,8 +40,12 @@ function classifyAccessError(err: unknown): AccessOutcome {
     return {hasAccess: false, error: null}
   }
   if (statusCode === 429) {
-    // Rate limited — don't mark as no access, let caller retry
-    return {hasAccess: null, error: 'rate_limited'}
+    // Rate limited — the caller can't do much about this. Historically we
+    // left hasAccess=null which stuck the project in "loading" forever
+    // since we don't retry. Treat as optimistic access: if the user clicks
+    // in and it turns out they don't have access, the lazy /datasets fetch
+    // will retroactively re-classify them to Locked.
+    return {hasAccess: true, error: 'rate_limited'}
   }
   return {hasAccess: null, error: extractErrorMessage(err)}
 }

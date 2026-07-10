@@ -718,28 +718,56 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   // so the sidebar can sort by dataset count. This is decoupled from the
   // ProjectAccessChecker (which unmounts once /projects/{id} succeeds) and
   // from the lazy fetchDatasetsForProject (which only fires on click).
+  //
+  // We serialize the fetches with a small delay to avoid triggering
+  // rate-limiting on top of the parallel /projects/{id} access checks.
   const datasetCountFetchedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!client) return
     const token = client.config().token
     if (!token) return
-    for (const p of accessibleProjects) {
-      if (datasetCountFetchedRef.current.has(p.id)) continue
-      if (state.datasetCounts.has(p.id)) continue
-      datasetCountFetchedRef.current.add(p.id)
-      fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
-        headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((datasets) => {
-          if (!Array.isArray(datasets)) return
-          const count = datasets.filter((d: {name?: string}) => d.name && !d.name.endsWith('-comments')).length
-          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
-        })
-        .catch(() => {
-          // Silent — /datasets can 401/403/404 (different ACL grants than
-          // /projects/{id}). Project falls back to alphabetical ordering.
-        })
+    const cancelled = {current: false}
+    const queue = accessibleProjects.filter(
+      (p) => !datasetCountFetchedRef.current.has(p.id) && !state.datasetCounts.has(p.id),
+    )
+    if (queue.length === 0) return
+
+    async function processQueue() {
+      for (const p of queue) {
+        if (cancelled.current) return
+        datasetCountFetchedRef.current.add(p.id)
+        try {
+          const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
+            headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+          })
+          if (cancelled.current) return
+          if (res.ok) {
+            const datasets = await res.json()
+            if (Array.isArray(datasets)) {
+              const count = datasets.filter(
+                (d: {name?: string}) => d.name && !d.name.endsWith('-comments'),
+              ).length
+              dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count})
+            }
+          } else {
+            // 401/403/404 or 429 — treat as "resolved with unknown count" so
+            // sort falls through to alphabetical rather than pinning the
+            // project at the end forever. count=-1 is the sentinel.
+            dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+          }
+        } catch {
+          if (cancelled.current) return
+          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+        }
+        // Gentle 50ms stagger — 20 requests/sec across the eager fetch is
+        // well under Sanity's per-token rate limit and prevents piling on
+        // top of the parallel access checks.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+    processQueue()
+    return () => {
+      cancelled.current = true
     }
   }, [accessibleProjects, client, state.datasetCounts])
 

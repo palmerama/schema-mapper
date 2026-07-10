@@ -351,13 +351,20 @@ function OrgOverview({
     }
     frequent.sort((a, b) => (visits[b.id]?.count ?? 0) - (visits[a.id]?.count ?? 0))
     // Sort the non-frequent block by dataset count DESC, alphabetical tiebreak.
-    // Projects without a count yet (still checking, or /datasets 403'd) fall
-    // through to alphabetical — their sort key is -1 which slots them AFTER
-    // any project with 0 datasets (which is still a valid answer).
+    // Sentinel count === -1 means "resolved but unknown" (401/403/404/429 on
+    // /datasets) — those sort alongside each other alphabetically at the
+    // very end of the count-known block. Projects with no entry yet in
+    // datasetCounts (still fetching) also get key -1 (they'll re-sort in
+    // when the response lands).
     if (datasetCounts && datasetCounts.size > 0) {
       rest.sort((a, b) => {
-        const ca = datasetCounts.has(a.id) ? datasetCounts.get(a.id)! : -1
-        const cb = datasetCounts.has(b.id) ? datasetCounts.get(b.id)! : -1
+        const rawA = datasetCounts.get(a.id)
+        const rawB = datasetCounts.get(b.id)
+        // Missing entries and -1 sentinels both become -1; sort by count
+        // DESC with alphabetical tiebreak preserves alphabetical order
+        // within the unknown group.
+        const ca = rawA === undefined || rawA < 0 ? -1 : rawA
+        const cb = rawB === undefined || rawB < 0 ? -1 : rawB
         if (ca !== cb) return cb - ca
         return a.displayName.localeCompare(b.displayName)
       })

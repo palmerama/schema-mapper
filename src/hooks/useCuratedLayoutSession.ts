@@ -194,15 +194,13 @@ export function useCuratedLayoutSession({
     setIsUnlocked(true) // newly-created starts editable
     setSaveState('saved')
     setLastSavedAt(Date.now())
-    // Belt-and-braces: force focus to persist across the create transition.
-    // Without this, effect ordering in the child + emit-up race on parent's
-    // graphState can lose focus even though the doc was created with the
-    // right lastFocus. Bumping restoreFocusVersion re-fires handleFocus
-    // imperatively after the new activeLayout has propagated.
-    if (focusState) {
-      setPendingFocusRestore(focusState)
-      setFocusRestoreVersion((v) => v + 1)
-    }
+    // NOTE: no belt-and-braces re-focus here. On null → newLayoutId
+    // (fresh create), SchemaGraph's curated-active effect skips
+    // handleExitFocus (`prev !== null` guard), so focusState is preserved
+    // through the transition. Re-firing restoreFocus would cause
+    // handleFocus to rebuild nodes from `types` via buildNodesAndEdges,
+    // briefly showing DEFAULT (pre-drag) positions before applyLayout
+    // resolves the saved positions — visible as a jump-back.
     return created
   }, [list, viewKey, currentUserId, focusState])
 

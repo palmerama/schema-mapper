@@ -7,12 +7,15 @@ import type {DiscoveredType, ProjectInfo} from '../types'
 // Display settings — read from localStorage
 // ---------------------------------------------------------------------------
 
-export function readDisplaySettings(): Record<string, unknown> {
+export function readDisplaySettings(overrides?: {edgeStyle?: string; layout?: string}): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   try {
-    const layout = localStorage.getItem('schema-mapper:layoutType')
+    const layout = overrides?.layout ?? localStorage.getItem('schema-mapper:layoutType')
     if (layout) out.layout = layout
-    const edgeStyle = localStorage.getItem('schema-mapper:edgeStyle')
+    // Prefer explicit override — e.g. when a curated layout is active, the
+    // effective edge style is on the view, NOT the last user-selected algo
+    // preference stored in localStorage.
+    const edgeStyle = overrides?.edgeStyle ?? localStorage.getItem('schema-mapper:edgeStyle')
     if (edgeStyle) out.edgeStyle = edgeStyle
     const spacingMap = localStorage.getItem('schema-mapper:spacingMap')
     if (spacingMap) out.spacingMap = JSON.parse(spacingMap)

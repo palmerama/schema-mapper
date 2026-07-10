@@ -752,7 +752,13 @@ function OrgOverview({
       type_count: effectiveTypes?.length ?? 0,
     })
     try {
-      const displaySettings = readDisplaySettings()
+      // Effective edge style: curated view's stored style wins, else the
+      // live graphState (which reflects the current algo's edge style).
+      // localStorage's value is the LAST algo tab preference and can be
+      // stale relative to what's rendered.
+      const effectiveEdgeStyle =
+        curatedSession.activeView?.edgeStyle ?? graphState.edgeStyle ?? undefined
+      const displaySettings = readDisplaySettings({edgeStyle: effectiveEdgeStyle})
       const nodePositions = readNodePositions(graphRef.current)
       const linkedSchemas = collectLinkedSchemas(
         effectiveTypes,

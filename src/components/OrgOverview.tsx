@@ -356,7 +356,7 @@ function OrgOverview({
   // (which is fully rendered but covered by a fade-out overlay).
   const PROJECTS_ROW_PX = 28 + 4
   const PROJECTS_VISIBLE_ROWS = 3 // 3 full rows + a peek row fully rendered but faded out
-  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 2
+  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 22
   // Threshold for "there IS more content below" — if scrollHeight exceeds
   // the room a 3-row cap would give, we have overflow worth expanding.
   const PROJECTS_OVERFLOW_THRESHOLD_PX = 3 * PROJECTS_ROW_PX + 2

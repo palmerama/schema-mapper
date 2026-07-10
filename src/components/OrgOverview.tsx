@@ -352,28 +352,38 @@ function OrgOverview({
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [projectsOverflow, setProjectsOverflow] = useState(false)
   const projectsRowRef = useRef<HTMLDivElement>(null)
-  // Row height: 28px tab + 4px vertical gap. 3-row cap:
-  const PROJECTS_COLLAPSED_MAX_PX = 3 * (28 + 4) + 2
+  // Row: 28px tab + 4px vertical gap. Show 3 full rows + peek at the 4th
+  // (which is fully rendered but covered by a fade-out overlay).
+  const PROJECTS_ROW_PX = 28 + 4
+  const PROJECTS_VISIBLE_ROWS = 4 // full 4th row rendered; overlay fades it
+  const PROJECTS_COLLAPSED_MAX_PX = PROJECTS_VISIBLE_ROWS * PROJECTS_ROW_PX + 2
+  // Threshold for "there IS more content below" — if scrollHeight exceeds
+  // the room a 3-row cap would give, we have overflow worth expanding.
+  const PROJECTS_OVERFLOW_THRESHOLD_PX = 3 * PROJECTS_ROW_PX + 2
   useEffect(() => {
     const el = projectsRowRef.current
     if (!el) return
     let raf: number | null = null
+    let retryTimeouts: ReturnType<typeof setTimeout>[] = []
     const measure = () => {
       if (raf !== null) cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // scrollHeight is full content height regardless of max-height,
-        // so we can measure against the fixed collapsed cap directly.
-        // This avoids the mid-transition ResizeObserver loop that
-        // comparing scrollHeight to clientHeight would cause.
-        setProjectsOverflow(el.scrollHeight > PROJECTS_COLLAPSED_MAX_PX + 2)
+        const currentEl = projectsRowRef.current
+        if (!currentEl) return
+        setProjectsOverflow(currentEl.scrollHeight > PROJECTS_OVERFLOW_THRESHOLD_PX + 2)
       })
     }
     measure()
+    // Retry after nav-collapse animation settles — the element can be
+    // observable but not yet laid out (scrollHeight=0) on mount / re-open.
+    retryTimeouts.push(setTimeout(measure, 60))
+    retryTimeouts.push(setTimeout(measure, 200))
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => {
       observer.disconnect()
       if (raf !== null) cancelAnimationFrame(raf)
+      retryTimeouts.forEach(clearTimeout)
     }
   }, [orderedProjects.length])
 
@@ -862,10 +872,10 @@ function OrgOverview({
             {/* ---- Project Tabs ---- */}
             <span className="text-sm font-normal text-muted-foreground pt-[3px]">Projects:</span>
               <div className="flex items-start gap-2 min-w-0">
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <div className="flex-1 min-w-0 flex flex-col">
                   <div
                     ref={projectsRowRef}
-                    className="overflow-hidden transition-[max-height] duration-200"
+                    className="relative overflow-hidden transition-[max-height] duration-200"
                     style={{ maxHeight: showAllProjects ? '100vh' : `${PROJECTS_COLLAPSED_MAX_PX}px` }}
                   >
                     <TabList space={1}>
@@ -923,15 +933,29 @@ function OrgOverview({
                     )
                   })}
                 </TabList>
+                {/* Fade-out overlay covering the 4th row when collapsed
+                    and there's more below. Also blocks pointer events on
+                    the peek row so users can't click a half-hidden tab. */}
+                {!showAllProjects && projectsOverflow && (
+                  <>
+                    <div
+                      className="pointer-events-auto absolute left-0 right-0 z-[5] bg-gradient-to-b from-transparent to-white dark:to-[#101112]"
+                      style={{ bottom: 0, height: `${PROJECTS_ROW_PX}px` }}
+                      aria-hidden="true"
+                    />
+                  </>
+                )}
                 </div>
                   {(projectsOverflow || showAllProjects) && (
-                    <button
-                      onClick={() => setShowAllProjects(v => !v)}
-                      className="self-start mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      {showAllProjects ? <GoChevronUp aria-hidden="true" /> : <GoChevronDown aria-hidden="true" />}
-                      {showAllProjects ? 'Collapse' : 'Expand'}
-                    </button>
+                    <div className="pt-2 pb-2">
+                      <button
+                        onClick={() => setShowAllProjects(v => !v)}
+                        className="self-start inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-muted-foreground border border-dashed rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        {showAllProjects ? <GoChevronUp aria-hidden="true" /> : <GoChevronDown aria-hidden="true" />}
+                        {showAllProjects ? 'Collapse' : 'Expand'}
+                      </button>
+                    </div>
                   )}
                 </div>
                 {isCheckingAccess && projects.length === 0 && (

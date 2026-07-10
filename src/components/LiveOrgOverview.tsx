@@ -90,6 +90,10 @@ interface State {
   phase: LoadingPhase
   // Access results per project
   accessResults: Map<string, {hasAccess: boolean | null; isChecking: boolean}>
+  // Dataset counts per project (for sidebar ordering — populated by
+  // useProjectAccess's parallel /datasets fetch). null / missing => still
+  // pending, sort falls back to alphabetical for that project.
+  datasetCounts: Map<string, number>
   // Datasets per project (loaded on demand when project tab clicked)
   datasets: Map<string, DatasetInfo[]>
   datasetsLoading: Set<string> // project IDs currently loading datasets
@@ -111,6 +115,7 @@ interface State {
 
 type Action =
   | {type: 'ACCESS_CHECKED'; projectId: string; hasAccess: boolean}
+  | {type: 'DATASET_COUNT_RESOLVED'; projectId: string; count: number}
   | {type: 'DATASETS_LOADING'; projectId: string}
   | {type: 'DATASETS_LOADED'; projectId: string; datasets: DatasetInfo[]}
   | {type: 'SCHEMA_LOADING'; key: string}
@@ -124,6 +129,7 @@ type Action =
 const initialState: State = {
   phase: 'checking_access',
   accessResults: new Map(),
+  datasetCounts: new Map(),
   datasets: new Map(),
   datasetsLoading: new Set(),
   schemas: new Map(),
@@ -147,6 +153,12 @@ function reducer(state: State, action: Action): State {
       const next = new Map(state.accessResults)
       next.set(action.projectId, {hasAccess: action.hasAccess, isChecking: false})
       return {...state, accessResults: next}
+    }
+
+    case 'DATASET_COUNT_RESOLVED': {
+      const next = new Map(state.datasetCounts)
+      next.set(action.projectId, action.count)
+      return {...state, datasetCounts: next}
     }
 
     case 'PHASE_READY':
@@ -281,13 +293,16 @@ function ProjectAccessChecker({
   projectId,
   client,
   onResult,
+  onDatasetCount,
 }: Readonly<{
   projectId: string
   client: SanityClient
   onResult: (projectId: string, hasAccess: boolean) => void
+  onDatasetCount: (projectId: string, count: number) => void
 }>) {
-  const {hasAccess, isChecking} = useProjectAccess(projectId, client)
+  const {hasAccess, isChecking, datasetCount} = useProjectAccess(projectId, client)
   const reportedRef = useRef(false)
+  const datasetCountReportedRef = useRef(false)
 
   useEffect(() => {
     if (!isChecking && hasAccess !== null && !reportedRef.current) {
@@ -295,6 +310,13 @@ function ProjectAccessChecker({
       onResult(projectId, hasAccess)
     }
   }, [isChecking, hasAccess, projectId, onResult])
+
+  useEffect(() => {
+    if (datasetCount !== null && !datasetCountReportedRef.current) {
+      datasetCountReportedRef.current = true
+      onDatasetCount(projectId, datasetCount)
+    }
+  }, [datasetCount, projectId, onDatasetCount])
 
   return null
 }
@@ -407,6 +429,13 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   const handleAccessResult = useCallback(
     (projectId: string, hasAccess: boolean) => {
       dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess})
+    },
+    [],
+  )
+
+  const handleDatasetCount = useCallback(
+    (projectId: string, count: number) => {
+      dispatch({type: 'DATASET_COUNT_RESOLVED', projectId, count})
     },
     [],
   )
@@ -781,7 +810,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             >
               <Suspense fallback={null}>
                 <ResourceProvider projectId={p.id} fallback={null}>
-                  <ProjectAccessChecker projectId={p.id} client={client} onResult={handleAccessResult} />
+                  <ProjectAccessChecker projectId={p.id} client={client} onResult={handleAccessResult} onDatasetCount={handleDatasetCount} />
                 </ResourceProvider>
               </Suspense>
             </ErrorBoundary>
@@ -846,6 +875,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         onSchemaSelect={handleSchemaSelect}
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
+        datasetCounts={state.datasetCounts}
       />
     </>
   )

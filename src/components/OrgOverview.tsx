@@ -136,6 +136,10 @@ interface OrgOverviewProps {
   // All cached schemas (from LiveOrgOverview state) for cross-dataset reference resolution
   readonly schemasCache?: Map<string, DiscoveredType[]>
   readonly deployedSchemasCache?: Map<string, DeployedSchemaEntry[]>
+  // Dataset counts per project (populated by useProjectAccess) — used to
+  // sort the non-frequent block in the sidebar by count DESC. Projects
+  // without a count yet fall back to alphabetical order.
+  readonly datasetCounts?: Map<string, number>
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +224,7 @@ function OrgOverview({
   onSchemaSelect,
   schemasCache,
   deployedSchemasCache,
+  datasetCounts,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -345,8 +350,20 @@ function OrgOverview({
       else rest.push(p)
     }
     frequent.sort((a, b) => (visits[b.id]?.count ?? 0) - (visits[a.id]?.count ?? 0))
+    // Sort the non-frequent block by dataset count DESC, alphabetical tiebreak.
+    // Projects without a count yet (still checking, or /datasets 403'd) fall
+    // through to alphabetical — their sort key is -1 which slots them AFTER
+    // any project with 0 datasets (which is still a valid answer).
+    if (datasetCounts && datasetCounts.size > 0) {
+      rest.sort((a, b) => {
+        const ca = datasetCounts.has(a.id) ? datasetCounts.get(a.id)! : -1
+        const cb = datasetCounts.has(b.id) ? datasetCounts.get(b.id)! : -1
+        if (ca !== cb) return cb - ca
+        return a.displayName.localeCompare(b.displayName)
+      })
+    }
     return [...frequent, ...rest]
-  }, [projects, isFrequent, visits])
+  }, [projects, isFrequent, visits, datasetCounts])
 
   // ---- Projects-section expand/collapse (when >3 rows) ----
   const [showAllProjects, setShowAllProjects] = useState(false)

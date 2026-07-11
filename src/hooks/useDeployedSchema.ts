@@ -475,15 +475,24 @@ function parseStudioSchema(
   // document field has `type: 'productCore'`, we expand the productCore's
   // own reference-bearing fields and surface them on the parent document.
   const objectTypeFields = new Map<string, any[]>()
+  // Named types that are portable text arrays (top-level `of: [...]` with no
+  // `fields`). These render as leaves with a "portable text" badge — NOT
+  // as containers or refs. Common Studio idiom is `blockContent` /
+  // `simpleBlockContent`. Without this detection, they'd fall through to a
+  // plain `object` badge with no visible content and confuse users.
+  const portableTextTypes = new Set<string>()
   for (const entry of schema) {
+    if (!entry || !entry.name) continue
+    if (entry.name.startsWith('sanity.') || entry.name.startsWith('assist.')) continue
     if (
-      entry &&
       entry.type !== 'document' &&
-      Array.isArray(entry.fields) &&
-      !entry.name.startsWith('sanity.') &&
-      !entry.name.startsWith('assist.')
+      Array.isArray(entry.fields)
     ) {
       objectTypeFields.set(entry.name, entry.fields)
+    }
+    // Portable text: has `of` but no `fields`
+    if (Array.isArray(entry.of) && !Array.isArray(entry.fields)) {
+      portableTextTypes.add(entry.name)
     }
   }
 
@@ -526,6 +535,13 @@ function parseStudioSchema(
 
       if (isRef) {
         out.push({...mapped, name: qualifiedName, parentPath: pathPrefix})
+        continue
+      }
+
+      // Portable text field → leaf with friendly badge (see note in
+      // processFields for the same branch).
+      if (raw.type && portableTextTypes.has(raw.type)) {
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, type: 'portableText'})
         continue
       }
 
@@ -608,6 +624,17 @@ function parseStudioSchema(
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
     for (const raw of filtered) {
       const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+
+      // Portable text field → leaf row with a friendly type label. These
+      // are named types like `blockContent` / `simpleBlockContent` that have
+      // top-level `of: [...]` (array of blocks) and no `fields`. Without
+      // this branch they fall through to the named-object detection which
+      // fails (no fields map), then to the raw emit which shows the
+      // opaque type name as the badge.
+      if (raw.type && portableTextTypes.has(raw.type)) {
+        out.push({...mapped, type: 'portableText'})
+        continue
+      }
 
       // Named non-document object type field → treat as inline-object ref.
       // The named object gets its own node; this row edges out to it.

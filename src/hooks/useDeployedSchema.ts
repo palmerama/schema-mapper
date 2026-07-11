@@ -461,7 +461,7 @@ function mapStudioField(
 // eslint-disable-next-line sonarjs/cognitive-complexity
 function parseStudioSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[] {
   // Collect all type names for detecting inline object references
   const allTypeNames = new Set<string>(schema.map((entry: any) => entry.name))
   const documentTypeNames = new Set<string>(
@@ -535,7 +535,7 @@ function parseStudioSchema(
         objectTypeFields.has(raw.type) &&
         !documentTypeNames.has(raw.type)
       ) {
-        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object'})
+        out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'object', containerElementType: raw.type})
         out.push(...flattenObjectTypeRefs(raw.type, qualifiedName, nextVisiting))
         continue
       }
@@ -561,7 +561,10 @@ function parseStudioSchema(
             m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
         )
         if (namedMembers.length > 0) {
-          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'array'})
+          // For single-type arrays, surface the element type; multi-type arrays
+          // stay unlabelled (the badge already conveys 'array').
+          const elementType = namedMembers.length === 1 ? namedMembers[0].type : undefined
+          out.push({...mapped, name: qualifiedName, parentPath: pathPrefix, containerKind: 'array', containerElementType: elementType})
           for (const member of namedMembers) {
             out.push(
               ...flattenObjectTypeRefs(
@@ -582,6 +585,113 @@ function parseStudioSchema(
     return out
   }
 
+  /**
+   * Process a set of raw Studio fields (from a document type OR from a named
+   * object type at top level) into DiscoveredField rows.
+   *
+   * Rules:
+   * - Named non-document object references (`type: 'personEntry'` where
+   *   personEntry is a top-level object type) emit as inline-object references
+   *   (isInlineObject: true, referenceTo: <name>). They edge out to the named
+   *   type's own node. NOT expanded inline.
+   * - Anonymous inline objects (`type: 'object'` with an inline `fields`
+   *   array) emit as containers + walked children with parentPath.
+   * - Arrays whose members are named non-document object types emit as a
+   *   single reference row with `referenceTargets = [type1, type2, ...]`
+   *   and `isArray: true`. Edges out to each member type's node.
+   * - Arrays of anonymous inline objects → container + walked children
+   *   (rare; kept for completeness).
+   * - Everything else (primitives, refs, cross-dataset refs) emits as-is.
+   */
+  function processFields(rawFields: any[]): DiscoveredField[] {
+    const out: DiscoveredField[] = []
+    const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+    for (const raw of filtered) {
+      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+
+      // Named non-document object type field → treat as inline-object ref.
+      // The named object gets its own node; this row edges out to it.
+      if (
+        raw.type &&
+        objectTypeFields.has(raw.type) &&
+        !documentTypeNames.has(raw.type)
+      ) {
+        out.push({
+          ...mapped,
+          isInlineObject: true,
+          referenceTo: raw.type,
+          type: 'object',
+        })
+        continue
+      }
+
+      // Anonymous inline object (`type: 'object'`, has inline `fields`) →
+      // container stub + expand children inline.
+      if (raw.type === 'object' && Array.isArray(raw.fields)) {
+        out.push({...mapped, containerKind: 'object'})
+        for (const child of raw.fields) {
+          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
+          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
+          const childQualified = `${raw.name}.${child.name}`
+          out.push({...childMapped, name: childQualified, parentPath: raw.name})
+        }
+        continue
+      }
+
+      // Array — check what its members are.
+      if (raw.type === 'array' && Array.isArray(raw.of)) {
+        const namedObjectMembers = raw.of.filter(
+          (m: any) =>
+            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
+        )
+        const anonymousObjectMembers = raw.of.filter(
+          (m: any) => m?.type === 'object' && Array.isArray(m.fields),
+        )
+
+        // Array of named object types → single row, references those types.
+        if (namedObjectMembers.length > 0 && anonymousObjectMembers.length === 0) {
+          const targets = namedObjectMembers.map((m: any) => m.type)
+          out.push({
+            ...mapped,
+            isInlineObject: true,
+            referenceTo: targets[0],
+            referenceTargets: targets.length > 1 ? targets : undefined,
+            isArray: true,
+            type: 'object',
+          })
+          continue
+        }
+
+        // Array of anonymous inline objects → container + walk each member's
+        // fields into the same anonymous namespace. Rare shape.
+        if (anonymousObjectMembers.length > 0 && namedObjectMembers.length === 0) {
+          out.push({...mapped, containerKind: 'array'})
+          for (const member of anonymousObjectMembers) {
+            for (const child of member.fields) {
+              if (SYSTEM_ATTRIBUTES.has(child.name)) continue
+              const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
+              const childQualified = `${raw.name}[].${child.name}`
+              out.push({
+                ...childMapped,
+                name: childQualified,
+                parentPath: `${raw.name}[]`,
+              })
+            }
+          }
+          continue
+        }
+
+        // Fall through: array of primitives / refs / mixed. Let mapStudioField's
+        // output stand — it already models refs correctly.
+      }
+
+      // Everything else (primitives, refs, cross-dataset refs, other arrays)
+      // emits as mapped.
+      out.push(mapped)
+    }
+    return out
+  }
+
   const documentTypes = schema.filter(
     (entry: any) =>
       entry.type === 'document' &&
@@ -589,77 +699,42 @@ function parseStudioSchema(
       !entry.name.startsWith('assist.'),
   )
 
-  return documentTypes.map((docType: any) => {
-    const rawFields = docType.fields || []
-    const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+  const documentNodes: DiscoveredType[] = documentTypes.map((docType: any) => ({
+    name: docType.name,
+    title: docType.title || undefined,
+    documentCount: 0,
+    fields: processFields(docType.fields || []),
+    kind: 'document' as const,
+  }))
 
-    const fields: DiscoveredField[] = []
-    for (const raw of filtered) {
-      const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
-
-      const visiting = new Set<string>([docType.name])
-
-      // If this field is typed as a named non-document object type
-      // (e.g. `type: 'productCore'`), stamp it as a container-object stub
-      // then expand its nested ref-bearing fields onto this document so
-      // edges are drawn correctly.
-      if (
-        raw.type &&
-        objectTypeFields.has(raw.type) &&
-        !documentTypeNames.has(raw.type)
-      ) {
-        fields.push({...mapped, containerKind: 'object'})
-        fields.push(...flattenObjectTypeRefs(raw.type, raw.name, visiting))
-        continue
-      }
-
-      // Inline anonymous object — treat like a named object but walk `raw.fields`.
-      if (raw.type === 'object' && Array.isArray(raw.fields)) {
-        fields.push({...mapped, containerKind: 'object'})
-        for (const child of raw.fields) {
-          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
-          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
-          const childQualified = `${raw.name}.${child.name}`
-          fields.push({...childMapped, name: childQualified, parentPath: raw.name})
-        }
-        continue
-      }
-
-      // Array of named non-document object types → container-array stub +
-      // recurse into each named-object member.
-      if (raw.type === 'array' && Array.isArray(raw.of)) {
-        const namedMembers = raw.of.filter(
-          (m: any) =>
-            m?.type && objectTypeFields.has(m.type) && !documentTypeNames.has(m.type),
-        )
-        if (namedMembers.length > 0) {
-          fields.push({...mapped, containerKind: 'array'})
-          for (const member of namedMembers) {
-            fields.push(
-              ...flattenObjectTypeRefs(member.type, `${raw.name}[]`, visiting),
-            )
-          }
-          continue
-        }
-      }
-
-      // Non-container field — push as-is.
-      fields.push(mapped)
+  // Named non-document object types → first-class nodes.
+  const objectNodes: DiscoveredType[] = []
+  for (const entry of schema) {
+    if (
+      entry &&
+      entry.type !== 'document' &&
+      Array.isArray(entry.fields) &&
+      !entry.name.startsWith('sanity.') &&
+      !entry.name.startsWith('assist.')
+    ) {
+      objectNodes.push({
+        name: entry.name,
+        title: entry.title || undefined,
+        documentCount: 0,
+        fields: processFields(entry.fields),
+        kind: 'object' as const,
+      })
     }
+  }
 
-    return {
-      name: docType.name,
-      title: docType.title || undefined,
-      fields,
-    }
-  })
+  return [...documentNodes, ...objectNodes]
 }
 
 // --- Parse deployed schema — auto-detect format ---
 
 function parseDeployedSchema(
   schema: any[],
-): {name: string; fields: DiscoveredField[]}[] {
+): {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[] {
   if (!schema || !Array.isArray(schema) || schema.length === 0) return []
 
   // Detect format: Studio schema has 'fields' arrays, GROQ type schema has 'attributes' objects
@@ -828,7 +903,7 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         }
 
         // Parse ALL workspace entries
-        const parsedEntries: {entry: any; parsedTypes: {name: string; fields: DiscoveredField[]}[]}[] = []
+        const parsedEntries: {entry: any; parsedTypes: {name: string; title?: string; fields: DiscoveredField[]; kind?: 'document' | 'object'}[]}[] = []
 
         for (const entry of rawSchemas) {
           const schemaData = extractSchemaData(entry)
@@ -852,11 +927,12 @@ export function useDeployedSchema(projectId: string, dataset: string): {
         setInferenceReason(null)
 
         // Fetch document counts once (shared across all workspace schemas — same dataset)
-        // Collect all unique type names across all workspace schemas
+        // Collect all unique DOCUMENT type names (object types have no
+        // storage, count is meaningless).
         const allTypeNames = new Set<string>()
         for (const {parsedTypes} of parsedEntries) {
           for (const t of parsedTypes) {
-            allTypeNames.add(t.name)
+            if (t.kind !== 'object') allTypeNames.add(t.name)
           }
         }
 

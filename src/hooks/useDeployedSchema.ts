@@ -703,11 +703,13 @@ function parseStudioSchema(
    *   (rare; kept for completeness).
    * - Everything else (primitives, refs, cross-dataset refs) emits as-is.
    */
-  function processFields(rawFields: any[]): DiscoveredField[] {
+  function processFields(rawFields: any[], pathPrefix = ''): DiscoveredField[] {
     const out: DiscoveredField[] = []
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
     for (const raw of filtered) {
       const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
+      const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
+      const rowParentPath = pathPrefix || undefined
 
       // Portable text field → leaf row with a friendly type label. These
       // are named types like `blockContent` / `simpleBlockContent` that have
@@ -738,13 +740,15 @@ function parseStudioSchema(
         if (embedTargets.length > 0) {
           out.push({
             ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
             type: 'portableText',
             isInlineObject: true,
             referenceTo: embedTargets[0],
             referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
           })
         } else {
-          out.push({...mapped, type: 'portableText'})
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, type: 'portableText'})
         }
         continue
       }
@@ -758,6 +762,8 @@ function parseStudioSchema(
       ) {
         out.push({
           ...mapped,
+          name: qualifiedName,
+          parentPath: rowParentPath,
           isInlineObject: true,
           referenceTo: raw.type,
           type: 'object',
@@ -766,15 +772,12 @@ function parseStudioSchema(
       }
 
       // Anonymous inline object (`type: 'object'`, has inline `fields`) →
-      // container stub + expand children inline.
+      // container stub + recurse. Recursion means nested containers (an
+      // object inside an object, or an array of objects inside an object)
+      // get their own chevrons all the way down.
       if (raw.type === 'object' && Array.isArray(raw.fields)) {
-        out.push({...mapped, containerKind: 'object'})
-        for (const child of raw.fields) {
-          if (SYSTEM_ATTRIBUTES.has(child.name)) continue
-          const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
-          const childQualified = `${raw.name}.${child.name}`
-          out.push({...childMapped, name: childQualified, parentPath: raw.name})
-        }
+        out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, containerKind: 'object'})
+        out.push(...processFields(raw.fields, qualifiedName))
         continue
       }
 
@@ -787,13 +790,15 @@ function parseStudioSchema(
         if (embedTargets.length > 0) {
           out.push({
             ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
             type: 'portableText',
             isInlineObject: true,
             referenceTo: embedTargets[0],
             referenceTargets: embedTargets.length > 1 ? embedTargets : undefined,
           })
         } else {
-          out.push({...mapped, type: 'portableText'})
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, type: 'portableText'})
         }
         continue
       }
@@ -813,6 +818,8 @@ function parseStudioSchema(
           const targets = namedObjectMembers.map((m: any) => m.type)
           out.push({
             ...mapped,
+            name: qualifiedName,
+            parentPath: rowParentPath,
             isInlineObject: true,
             referenceTo: targets[0],
             referenceTargets: targets.length > 1 ? targets : undefined,
@@ -822,21 +829,14 @@ function parseStudioSchema(
           continue
         }
 
-        // Array of anonymous inline objects → container + walk each member's
-        // fields into the same anonymous namespace. Rare shape.
+        // Array of anonymous inline objects → container + recurse.
+        // Each member contributes its fields into the same `${name}[]`
+        // namespace. Recursion means deeper nesting inside a member's fields
+        // (further objects/arrays) gets chevrons too.
         if (anonymousObjectMembers.length > 0 && namedObjectMembers.length === 0) {
-          out.push({...mapped, containerKind: 'array'})
+          out.push({...mapped, name: qualifiedName, parentPath: rowParentPath, containerKind: 'array'})
           for (const member of anonymousObjectMembers) {
-            for (const child of member.fields) {
-              if (SYSTEM_ATTRIBUTES.has(child.name)) continue
-              const childMapped = mapStudioField(child, allTypeNames, documentTypeNames)
-              const childQualified = `${raw.name}[].${child.name}`
-              out.push({
-                ...childMapped,
-                name: childQualified,
-                parentPath: `${raw.name}[]`,
-              })
-            }
+            out.push(...processFields(member.fields, `${qualifiedName}[]`))
           }
           continue
         }
@@ -847,7 +847,7 @@ function parseStudioSchema(
 
       // Everything else (primitives, refs, cross-dataset refs, other arrays)
       // emits as mapped.
-      out.push(mapped)
+      out.push({...mapped, name: qualifiedName, parentPath: rowParentPath})
     }
     return out
   }

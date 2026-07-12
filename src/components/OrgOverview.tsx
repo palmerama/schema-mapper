@@ -912,8 +912,11 @@ function OrgOverview({
                   >
                     <TabList space={1}>
                   {orderedProjects.map((project, idx) => {
-                    const isLoading = isCheckingAccess || datasetCountsLoading || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     const isFreq = isFrequent(project.id)
+                    // Frequent projects stay interactive throughout — they're
+                    // pinned at the top by visit count, so they don't shuffle.
+                    // Everyone else gates on the eager-fetch reorder settling.
+                    const isLoading = isCheckingAccess || (!isFreq && datasetCountsLoading) || project.isProjectLoading || (isDatasetsLoading && selectedProjectId === project.id)
                     // Separator between the pinned frequent block and the rest.
                     const prev = idx > 0 ? orderedProjects[idx - 1] : null
                     const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq

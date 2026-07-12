@@ -928,7 +928,14 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         schemasCache={state.schemas}
         deployedSchemasCache={state.deployedSchemas}
         datasetCounts={state.datasetCounts}
-        datasetCountsLoading={accessibleProjects.some((p) => !state.datasetCounts.has(p.id))}
+        datasetCountsLoading={(() => {
+          const missing = accessibleProjects.filter((p) => !state.datasetCounts.has(p.id))
+          if (missing.length > 0 && missing.length <= 20) {
+            // Diagnostic — will strip once confirmed working
+            console.log('[datasetCounts] still awaiting:', missing.map((p) => p.id))
+          }
+          return missing.length > 0
+        })()}
       />
     </>
   )

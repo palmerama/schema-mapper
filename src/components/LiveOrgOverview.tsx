@@ -731,6 +731,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
       (p) => !datasetCountFetchedRef.current.has(p.id) && !state.datasetCounts.has(p.id),
     )
     if (queue.length === 0) return
+    console.log(`[datasetCounts] queue starting for ${queue.length} projects (accessible=${accessibleProjects.length}, alreadyResolved=${state.datasetCounts.size}, alreadyFetched=${datasetCountFetchedRef.current.size})`)
 
     async function processQueue() {
       for (const p of queue) {
@@ -740,6 +741,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
           const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
             headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
           })
+          console.log(`[datasetCounts] ${p.id}: HTTP ${res.status}`)
           if (cancelled.current) return
           if (res.ok) {
             const datasets = await res.json()
@@ -930,9 +932,9 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
         datasetCounts={state.datasetCounts}
         datasetCountsLoading={(() => {
           const missing = accessibleProjects.filter((p) => !state.datasetCounts.has(p.id))
-          if (missing.length > 0 && missing.length <= 20) {
+          if (missing.length > 0) {
             // Diagnostic — will strip once confirmed working
-            console.log('[datasetCounts] still awaiting:', missing.map((p) => p.id))
+            console.log(`[datasetCounts] still awaiting ${missing.length} of ${accessibleProjects.length}:`, missing.slice(0, 10).map((p) => p.id))
           }
           return missing.length > 0
         })()}

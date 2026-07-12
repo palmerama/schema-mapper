@@ -432,7 +432,26 @@ function mapStudioField(
       if (hasBlocks) {
         return {name, title: field.title || undefined, type: 'block', isArray: true}
       }
-      return {name, title: field.title || undefined, type: 'array', isArray: true}
+      // Surface the element type for primitive arrays (array of number,
+      // array of string, etc.) so the badge can render 'number[]' instead
+      // of just 'array[]'. Only meaningful when every member has the same
+      // simple type; mixed / object members are handled by other branches.
+      const primitiveOf: string | undefined = (() => {
+        if (ofTypes.length === 0) return undefined
+        const types = new Set<string>()
+        for (const o of ofTypes) {
+          if (!o?.type || o.type === 'object' || o.type === 'reference' || o.type === 'crossDatasetReference' || o.type === 'globalDocumentReference') return undefined
+          types.add(o.type)
+        }
+        return types.size === 1 ? [...types][0] : undefined
+      })()
+      return {
+        name,
+        title: field.title || undefined,
+        type: 'array',
+        isArray: true,
+        ...(primitiveOf ? {containerElementType: primitiveOf} : {}),
+      }
     }
     case 'object':
       return {name, title: field.title || undefined, type: 'object'}

@@ -775,7 +775,14 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     return () => {
       cancelled.current = true
     }
-  }, [accessibleProjects, client, state.datasetCounts])
+    // Intentionally omit state.datasetCounts from deps: the loop reads
+    // datasetCountFetchedRef (a ref, not state) to skip already-started
+    // projects. Including state.datasetCounts causes the effect to cancel
+    // itself on every dispatch, and depending on timing the resumed loop
+    // can stall. Fetched-ref + queue.length===0 early return handles
+    // dedup correctly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessibleProjects, client])
 
   // Derive loading states for the currently selected project/dataset
   const isDatasetsLoading = state.selectedProjectId

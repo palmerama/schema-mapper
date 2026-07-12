@@ -723,6 +723,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   // rate-limiting on top of the parallel /projects/{id} access checks.
   const datasetCountFetchedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
+    console.log(`[datasetCounts] effect fired: accessible=${accessibleProjects.length}, hasClient=${!!client}, hasToken=${!!client?.config().token}`)
     if (!client) return
     const token = client.config().token
     if (!token) return

@@ -353,10 +353,16 @@ function OrgOverview({
     // Sort the non-frequent block by dataset count DESC, alphabetical tiebreak.
     // Sentinel count === -1 means "resolved but unknown" (401/403/404/429 on
     // /datasets) — those sort alongside each other alphabetically at the
-    // very end of the count-known block. Projects with no entry yet in
-    // datasetCounts (still fetching) also get key -1 (they'll re-sort in
-    // when the response lands).
-    if (datasetCounts && datasetCounts.size > 0) {
+    // very end of the count-known block.
+    //
+    // Hold the sort until EVERY non-frequent project has a resolved count
+    // (real number OR -1 sentinel). Otherwise the row visibly re-orders as
+    // each response lands, and hovering a tab mid-shuffle produces a stale
+    // element and a crash in the dashboard's error overlay
+    // (its handler reads `.message` off the aborted event's null reason).
+    // Once all counts land, we commit the sort in a single pass.
+    const allResolved = rest.length === 0 || rest.every((p) => datasetCounts?.has(p.id))
+    if (allResolved && datasetCounts && datasetCounts.size > 0) {
       rest.sort((a, b) => {
         const rawA = datasetCounts.get(a.id)
         const rawB = datasetCounts.get(b.id)

@@ -748,10 +748,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
           })
           console.log(`[datasetCounts] ${p.id}: HTTP ${res.status}`)
-          if (cancelled.current) {
-            datasetCountInFlightRef.current.delete(p.id)
-            return
-          }
+          // NOTE: intentionally dispatch even if cancelled — we have the
+          // result in hand, dropping it would strand the project. Reducer
+          // is a plain merge; unmounted-component dispatches are a no-op
+          // in React 18+.
           if (res.ok) {
             const datasets = await res.json()
             if (Array.isArray(datasets)) {
@@ -770,20 +770,19 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             // project at the end forever. count=-1 is the sentinel.
             dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
           }
-          // Mark as fetched ONLY after a successful dispatch. If the loop
-          // gets canceled mid-fetch (e.g. from an unrelated re-render),
-          // this project stays in the pending set and gets picked up when
-          // the effect re-fires.
+          // Mark as fetched after dispatch.
           datasetCountFetchedRef.current.add(p.id)
           datasetCountInFlightRef.current.delete(p.id)
+          if (cancelled.current) return
         } catch {
-          if (cancelled.current) {
-            datasetCountInFlightRef.current.delete(p.id)
-            return
+          // Only dispatch a sentinel if the fetch itself failed AND we
+          // weren't canceled (a canceled abort would throw here).
+          if (!cancelled.current) {
+            dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+            datasetCountFetchedRef.current.add(p.id)
           }
-          dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
-          datasetCountFetchedRef.current.add(p.id)
           datasetCountInFlightRef.current.delete(p.id)
+          if (cancelled.current) return
         }
         // Gentle 50ms stagger — 20 requests/sec across the eager fetch is
         // well under Sanity's per-token rate limit and prevents piling on

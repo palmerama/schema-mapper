@@ -1055,15 +1055,15 @@ function OrgOverview({
           {/* ---- Dataset Info Line ---- */}
           {selectedDataset && !isSchemasLoading && (
             <div
-              className="flex items-center gap-2 mt-3 py-2 text-sm"
+              className="flex items-center gap-2 mt-3 py-2 text-sm flex-nowrap overflow-hidden min-w-0"
               onMouseEnter={() => {
                 if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
               }}
             >
-              <GoDatabase className="text-base" />
+              <GoDatabase className="text-base shrink-0" />
               {navigationStack.length > 0 ? (
                 <>
-                  <span className={isGlobalNav ? 'font-normal text-purple-700 dark:text-purple-400' : 'font-normal text-teal-700 dark:text-teal-400'}>
+                  <span className={(isGlobalNav ? 'font-normal text-purple-700 dark:text-purple-400' : 'font-normal text-teal-700 dark:text-teal-400') + ' truncate min-w-0'}>
                     {selectedProject?.displayName} / {selectedDatasetName}
                   </span>
                   <Badge
@@ -1072,24 +1072,24 @@ function OrgOverview({
                       (isGlobalNav
                         ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300'
                         : 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300')
-                      + ' font-normal'
+                      + ' font-normal shrink-0 whitespace-nowrap'
                     }
                   >
                     {isGlobalNav ? 'global reference' : 'cross-dataset reference'}
                   </Badge>
-                  <span className="text-muted-foreground">·</span>
-                  <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+                  <span className="text-muted-foreground shrink-0">·</span>
+                  <span className="shrink-0 whitespace-nowrap">{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               ) : (
                 <>
-                  <span className="font-normal text-green-700 dark:text-green-400">{selectedDataset.name}</span>
+                  <span className="font-normal text-green-700 dark:text-green-400 truncate min-w-0">{selectedDataset.name}</span>
                   <Badge
                     variant={selectedDataset.aclMode === 'public' ? 'default' : 'secondary'}
                     className={
                       (selectedDataset.aclMode === 'public'
                         ? 'bg-green-100 text-green-800 hover:bg-green-200 font-normal dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/70'
                         : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
-                      + ' cursor-pointer select-none transition-colors'
+                      + ' cursor-pointer select-none transition-colors shrink-0 whitespace-nowrap'
                     }
                     onClick={() => setShowAclDialog(true)}
                   >
@@ -1104,7 +1104,7 @@ function OrgOverview({
                     (effectiveSource === 'deployed'
                       ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-normal dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70'
                       : 'bg-amber-100 text-amber-800 hover:bg-amber-200 font-normal dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70')
-                    + ' cursor-pointer select-none transition-colors'
+                    + ' cursor-pointer select-none transition-colors shrink-0 whitespace-nowrap'
                   }
                   onClick={() => setShowSchemaInfoDialog(true)}
                 >
@@ -1120,10 +1120,10 @@ function OrgOverview({
                 )}
                 </>
               )}
-              <span className="text-muted-foreground">·</span>
-              <span>{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
-              <span className="text-muted-foreground">·</span>
-              <span>{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="shrink-0 whitespace-nowrap">{formatNumber(selectedDataset.totalDocuments)} {selectedDataset.totalDocuments === 1 ? 'document' : 'documents'}</span>
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span className="shrink-0 whitespace-nowrap">{effectiveTypes.length} {effectiveTypes.length === 1 ? 'type' : 'types'}</span>
                 </>
               )}
               {/* Export dropdown — shown in both normal and navigation modes */}

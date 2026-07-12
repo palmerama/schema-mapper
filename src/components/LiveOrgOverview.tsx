@@ -784,10 +784,10 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
           datasetCountInFlightRef.current.delete(p.id)
           if (cancelled.current) return
         }
-        // Gentle 50ms stagger — 20 requests/sec across the eager fetch is
-        // well under Sanity's per-token rate limit and prevents piling on
-        // top of the parallel access checks.
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        // 10ms stagger keeps parallelism gentle but total wall time is
+        // dominated by fetch latency, not the delay. For ~80 projects
+        // that's ~800ms of stagger vs seconds of network time.
+        await new Promise((resolve) => setTimeout(resolve, 10))
       }
     }
     processQueue()

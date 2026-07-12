@@ -722,6 +722,7 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
   // We serialize the fetches with a small delay to avoid triggering
   // rate-limiting on top of the parallel /projects/{id} access checks.
   const datasetCountFetchedRef = useRef<Set<string>>(new Set())
+  const datasetCountInFlightRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     console.log(`[datasetCounts] effect fired: accessible=${accessibleProjects.length}, hasClient=${!!client}, hasToken=${!!client?.config().token}`)
     if (!client) return
@@ -729,21 +730,28 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
     if (!token) return
     const cancelled = {current: false}
     const queue = accessibleProjects.filter(
-      (p) => !datasetCountFetchedRef.current.has(p.id) && !state.datasetCounts.has(p.id),
+      (p) =>
+        !datasetCountFetchedRef.current.has(p.id) &&
+        !datasetCountInFlightRef.current.has(p.id) &&
+        !state.datasetCounts.has(p.id),
     )
     if (queue.length === 0) return
-    console.log(`[datasetCounts] queue starting for ${queue.length} projects (accessible=${accessibleProjects.length}, alreadyResolved=${state.datasetCounts.size}, alreadyFetched=${datasetCountFetchedRef.current.size})`)
+    console.log(`[datasetCounts] queue starting for ${queue.length} projects (accessible=${accessibleProjects.length}, alreadyResolved=${state.datasetCounts.size}, alreadyFetched=${datasetCountFetchedRef.current.size}, inFlight=${datasetCountInFlightRef.current.size})`)
 
     async function processQueue() {
       for (const p of queue) {
         if (cancelled.current) return
-        datasetCountFetchedRef.current.add(p.id)
+        if (datasetCountFetchedRef.current.has(p.id) || datasetCountInFlightRef.current.has(p.id)) continue
+        datasetCountInFlightRef.current.add(p.id)
         try {
           const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
             headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
           })
           console.log(`[datasetCounts] ${p.id}: HTTP ${res.status}`)
-          if (cancelled.current) return
+          if (cancelled.current) {
+            datasetCountInFlightRef.current.delete(p.id)
+            return
+          }
           if (res.ok) {
             const datasets = await res.json()
             if (Array.isArray(datasets)) {
@@ -762,9 +770,20 @@ function LiveOrgOverviewInner({allowedProjectIds}: Readonly<{allowedProjectIds?:
             // project at the end forever. count=-1 is the sentinel.
             dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
           }
+          // Mark as fetched ONLY after a successful dispatch. If the loop
+          // gets canceled mid-fetch (e.g. from an unrelated re-render),
+          // this project stays in the pending set and gets picked up when
+          // the effect re-fires.
+          datasetCountFetchedRef.current.add(p.id)
+          datasetCountInFlightRef.current.delete(p.id)
         } catch {
-          if (cancelled.current) return
+          if (cancelled.current) {
+            datasetCountInFlightRef.current.delete(p.id)
+            return
+          }
           dispatch({type: 'DATASET_COUNT_RESOLVED', projectId: p.id, count: -1})
+          datasetCountFetchedRef.current.add(p.id)
+          datasetCountInFlightRef.current.delete(p.id)
         }
         // Gentle 50ms stagger — 20 requests/sec across the eager fetch is
         // well under Sanity's per-token rate limit and prevents piling on

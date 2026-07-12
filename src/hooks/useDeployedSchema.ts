@@ -706,9 +706,19 @@ function parseStudioSchema(
   function processFields(rawFields: any[], pathPrefix = ''): DiscoveredField[] {
     const out: DiscoveredField[] = []
     const filtered = rawFields.filter((f: any) => !SYSTEM_ATTRIBUTES.has(f.name))
+    // The visibility walker in SchemaNode.tsx strips trailing `[]` from every
+    // segment of a field's parentPath before matching openPaths. So a container
+    // whose own name contains `[]` in an ancestor segment (because it's nested
+    // inside an array container) would never match — the walker would look
+    // for a bare-form name. We keep two parallel forms:
+    //   • pathPrefix (with `[]`)  — used as children's parentPath so they know
+    //     their array-membership. Also used when RECURSING into arrays.
+    //   • barePrefix (no `[]`)    — used to construct THIS row's `name` so it
+    //     matches what the walker will look up in openPaths.
+    const barePrefix = pathPrefix.replace(/\[\]/g, '')
     for (const raw of filtered) {
       const mapped = mapStudioField(raw, allTypeNames, documentTypeNames)
-      const qualifiedName = pathPrefix ? `${pathPrefix}.${raw.name}` : raw.name
+      const qualifiedName = barePrefix ? `${barePrefix}.${raw.name}` : raw.name
       const rowParentPath = pathPrefix || undefined
 
       // Portable text field → leaf row with a friendly type label. These

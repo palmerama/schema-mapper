@@ -29,6 +29,16 @@ const organizationId = 'YOUR_ORG_ID' // TODO: Replace with your Sanity organizat
 // When populated, only projects whose id is in this list will appear in the UI.
 const allowedProjectIds: string[] = []
 
+// Optional: hide types from the graph (documents or objects).
+// Supports exact names (`translation.metadata`) and prefix wildcards
+// (`workflow.*`, `internationalizedArray*`). Empty = show everything.
+const hiddenDocumentTypes: string[] = []
+
+// Optional: hide fields by name on every remaining type in the graph.
+// Supports exact names (`createdBy`) and prefix wildcards (`klaviyo*`).
+// Empty = show every field.
+const hiddenFields: string[] = []
+
 // SDK bootstrap config — only projectId is needed for auth context.
 // We intentionally DO NOT specify a dataset here: the SDK would open a
 // real-time `listen` stream against it on mount, which 404s if the project
@@ -109,10 +119,46 @@ export default function App() {
           <Suspense fallback={<LoadingScreen />}>
             <HashRouter>
               <Routes>
-                <Route path="/:orgId/:projectId/:dataset" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
-                <Route path="/:orgId/:projectId" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
-                <Route path="/:orgId" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
-                <Route path="/" element={<LiveOrgOverview allowedProjectIds={allowedProjectIds} />} />
+                <Route
+                  path="/:orgId/:projectId/:dataset"
+                  element={
+                    <LiveOrgOverview
+                      allowedProjectIds={allowedProjectIds}
+                      hiddenDocumentTypes={hiddenDocumentTypes}
+                      hiddenFields={hiddenFields}
+                    />
+                  }
+                />
+                <Route
+                  path="/:orgId/:projectId"
+                  element={
+                    <LiveOrgOverview
+                      allowedProjectIds={allowedProjectIds}
+                      hiddenDocumentTypes={hiddenDocumentTypes}
+                      hiddenFields={hiddenFields}
+                    />
+                  }
+                />
+                <Route
+                  path="/:orgId"
+                  element={
+                    <LiveOrgOverview
+                      allowedProjectIds={allowedProjectIds}
+                      hiddenDocumentTypes={hiddenDocumentTypes}
+                      hiddenFields={hiddenFields}
+                    />
+                  }
+                />
+                <Route
+                  path="/"
+                  element={
+                    <LiveOrgOverview
+                      allowedProjectIds={allowedProjectIds}
+                      hiddenDocumentTypes={hiddenDocumentTypes}
+                      hiddenFields={hiddenFields}
+                    />
+                  }
+                />
               </Routes>
             </HashRouter>
           </Suspense>

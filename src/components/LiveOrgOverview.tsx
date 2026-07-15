@@ -408,11 +408,36 @@ function LiveOrgOverviewInner({
   const orgId = useDashboardOrganizationId()
   // Optional config-level filter: when allowedProjectIds is non-empty,
   // only keep projects whose id appears in the list.
-  const projects = useMemo(() => {
+  //
+  // useProjects() from the SDK can return a fresh array reference on
+  // internal state changes even when the project list content is
+  // unchanged. That fresh identity churns downstream memos (accessibleProjects
+  // → accessibleProjectIds → buildGraphExtra) causing gratuitous relayouts
+  // during unrelated work (e.g. dataset-count reorder). Stabilise identity
+  // by content signature.
+  const rawProjects = useMemo(() => {
     if (!allowedProjectIds || allowedProjectIds.length === 0) return allProjects
     const allowed = new Set(allowedProjectIds)
     return allProjects.filter((p: any) => allowed.has(p.id))
   }, [allProjects, allowedProjectIds])
+
+  // Content-signature-based identity stabilisation. If the ids are the
+  // same set (order-independent), return the previous reference.
+  const projectsIdentityRef = useRef<{sig: string; value: typeof rawProjects}>({
+    sig: '',
+    value: rawProjects,
+  })
+  const projectsSig = useMemo(
+    () => rawProjects.map((p: any) => p.id).sort().join(','),
+    [rawProjects],
+  )
+  const projects = useMemo(() => {
+    if (projectsIdentityRef.current.sig === projectsSig) {
+      return projectsIdentityRef.current.value
+    }
+    projectsIdentityRef.current = {sig: projectsSig, value: rawProjects}
+    return rawProjects
+  }, [projectsSig, rawProjects])
   const client = useClient({apiVersion: '2024-01-01'})
   const [orgName, setOrgName] = useState<string | undefined>(undefined)
 
@@ -455,7 +480,6 @@ function LiveOrgOverviewInner({
 
   const handleAccessResult = useCallback(
     (projectId: string, hasAccess: boolean) => {
-      console.log('[LOO.dispatchACCESS]', projectId, hasAccess)
       dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess})
     },
     [],
@@ -772,21 +796,6 @@ function LiveOrgOverviewInner({
 
     return {accessibleProjects: accessible, lockedProjects: locked}
   }, [projects, state.accessResults, state.datasets, state.schemas, state.schemaSource, state.datasetsLoading])
-
-  // Diagnostic: which of accessibleProjects's deps changes on every render?
-  const _apDbg = useRef({p: projects, ar: state.accessResults, d: state.datasets, s: state.schemas, ss: state.schemaSource, dl: state.datasetsLoading})
-  const _apPrev = _apDbg.current
-  const _apChanges: string[] = []
-  if (_apPrev.p !== projects) _apChanges.push('projects')
-  if (_apPrev.ar !== state.accessResults) _apChanges.push('accessResults')
-  if (_apPrev.d !== state.datasets) _apChanges.push('datasets')
-  if (_apPrev.s !== state.schemas) _apChanges.push('schemas')
-  if (_apPrev.ss !== state.schemaSource) _apChanges.push('schemaSource')
-  if (_apPrev.dl !== state.datasetsLoading) _apChanges.push('datasetsLoading')
-  if (_apChanges.length > 0) {
-    console.log('[LOO.apChanged]', _apChanges)
-    _apDbg.current = {p: projects, ar: state.accessResults, d: state.datasets, s: state.schemas, ss: state.schemaSource, dl: state.datasetsLoading}
-  }
 
   // ---- Eager dataset-count fetch (for sidebar ordering) ----
   // Runs a lightweight /projects/{id}/datasets fetch per accessible project

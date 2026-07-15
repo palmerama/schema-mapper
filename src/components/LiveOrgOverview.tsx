@@ -455,6 +455,7 @@ function LiveOrgOverviewInner({
 
   const handleAccessResult = useCallback(
     (projectId: string, hasAccess: boolean) => {
+      console.log('[LOO.dispatchACCESS]', projectId, hasAccess)
       dispatch({type: 'ACCESS_CHECKED', projectId, hasAccess})
     },
     [],

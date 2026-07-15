@@ -283,6 +283,11 @@ function OrgOverview({
     }
     return false
   })
+  // Show-hidden toggle — reveals types the customer's config would normally
+  // hide (via hiddenDocumentTypes / hiddenFields, and — later — page-builder).
+  // State is per-mount (resetKey remounts SchemaGraph anyway) but restored
+  // from curated view when a saved layout carries it.
+  const [showHidden, setShowHidden] = useState(false)
   const newLayoutInputRef = useRef<HTMLInputElement>(null)
   // Autofocus doesn't stick when the dialog mounts (portal steals focus).
   // Do it imperatively after the dialog is fully open.
@@ -703,7 +708,22 @@ function OrgOverview({
 
   // Use the schema source from props (parent controls deployed/inferred)
   const effectiveSource = schemaSource
-  const effectiveTypes = types
+  // When Show hidden is active and we have the raw (pre-filter) types,
+  // substitute them so the graph sees the full picture. The graph itself
+  // distinguishes hidden types via hiddenTypeNames (dashed border + wash).
+  const effectiveTypes = showHidden && rawTypes ? rawTypes : types
+  // Names of types present in rawTypes but not in types — the ones config
+  // hides. Only meaningful when showHidden is active.
+  const effectiveHiddenTypeNames = useMemo(() => {
+    if (!showHidden || !rawTypes) return undefined
+    const visible = new Set(types.map(t => t.name))
+    const hidden = new Set<string>()
+    for (const t of rawTypes) if (!visible.has(t.name)) hidden.add(t.name)
+    // Merge with any hiddenTypeNames passed from parent (kept for future
+    // extensibility — parent may pre-compute a broader hidden set).
+    if (hiddenTypeNames) for (const n of hiddenTypeNames) hidden.add(n)
+    return hidden.size > 0 ? hidden : undefined
+  }, [showHidden, rawTypes, types, hiddenTypeNames])
 
   // Page-builder / hero block types referenced from top-level fields. When the
   // toggle is off we hide these nodes from the graph but keep the pageBuilder/
@@ -1319,6 +1339,7 @@ function OrgOverview({
               <SchemaGraph
                 types={effectiveTypes}
                 excludeTypeNames={excludeTypeNames}
+                hiddenTypeNames={effectiveHiddenTypeNames}
                 onStateChange={setGraphState}
                 onViewportChange={handleViewportChange}
                 fitViewTrigger={fitViewTrigger}
@@ -1331,24 +1352,48 @@ function OrgOverview({
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
                 extraControls={
-                  pageBuilderTypeNames.length > 0 ? (
+                  (pageBuilderTypeNames.length > 0 || (allowShowHidden && rawTypes && rawTypes.length !== types.length)) ? (
                     <>
-                      <span aria-hidden="true" />
-                      <label
-                        className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
-                        title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showPageBuilderBlocks}
-                          onChange={e => handleShowPageBuilderChange(e.target.checked)}
-                          className="w-3 h-3 accent-gray-700 cursor-pointer"
-                        />
-                        <span>
-                          Page builder
-                          {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
-                        </span>
-                      </label>
+                      {pageBuilderTypeNames.length > 0 && (
+                        <>
+                          <span aria-hidden="true" />
+                          <label
+                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={showPageBuilderBlocks}
+                              onChange={e => handleShowPageBuilderChange(e.target.checked)}
+                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                            />
+                            <span>
+                              Page builder
+                              {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
+                            </span>
+                          </label>
+                        </>
+                      )}
+                      {allowShowHidden && rawTypes && rawTypes.length !== types.length && (
+                        <>
+                          <span aria-hidden="true" />
+                          <label
+                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            title="Show types this app is configured to hide. Revealed types are dashed and desaturated."
+                          >
+                            <input
+                              type="checkbox"
+                              checked={showHidden}
+                              onChange={e => setShowHidden(e.target.checked)}
+                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                            />
+                            <span>
+                              Show hidden
+                              {!showHidden ? ` (${rawTypes.length - types.length} hidden)` : ''}
+                            </span>
+                          </label>
+                        </>
+                      )}
                     </>
                   ) : undefined
                 }

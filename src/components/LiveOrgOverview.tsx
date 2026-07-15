@@ -659,21 +659,6 @@ function LiveOrgOverviewInner({
         rawResolvedTypes,
         {hiddenTypes: hiddenDocumentTypes, hiddenFields},
       )
-      // TEMP DIAGNOSTIC — remove once verified
-      console.log('[schema-mapper hide-config]', {
-        hiddenDocumentTypes,
-        hiddenFields,
-        rawTypeCount: rawResolvedTypes.length,
-        filteredTypeCount: resolvedTypes.length,
-        droppedTypes: rawResolvedTypes
-          .filter(rt => !resolvedTypes.some(ft => ft.name === rt.name))
-          .map(t => t.name),
-        allTypeNames: rawResolvedTypes.map(t => t.name),
-        sampleFieldNames: rawResolvedTypes.slice(0, 5).map(t => ({
-          type: t.name,
-          fields: t.fields.slice(0, 8).map(f => ({name: f.name, parentPath: f.parentPath})),
-        })),
-      })
       // Same split for every deployed schema entry (workspace switch source).
       const rawResolvedDeployedSchemas = deployedSchemas.map(entry => ({
         ...entry,
@@ -798,7 +783,6 @@ function LiveOrgOverviewInner({
   const datasetCountFetchedRef = useRef<Set<string>>(new Set())
   const datasetCountInFlightRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    console.log(`[datasetCounts] effect fired: accessible=${accessibleProjects.length}, hasClient=${!!client}, hasToken=${!!client?.config().token}`)
     if (!client) return
     const token = client.config().token
     if (!token) return
@@ -810,7 +794,6 @@ function LiveOrgOverviewInner({
         !state.datasetCounts.has(p.id),
     )
     if (queue.length === 0) return
-    console.log(`[datasetCounts] queue starting for ${queue.length} projects (accessible=${accessibleProjects.length}, alreadyResolved=${state.datasetCounts.size}, alreadyFetched=${datasetCountFetchedRef.current.size}, inFlight=${datasetCountInFlightRef.current.size})`)
 
     async function processQueue() {
       for (const p of queue) {
@@ -821,7 +804,6 @@ function LiveOrgOverviewInner({
           const res = await fetch(`https://api.sanity.io/v2024-01-01/projects/${p.id}/datasets`, {
             headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
           })
-          console.log(`[datasetCounts] ${p.id}: HTTP ${res.status}`)
           // NOTE: intentionally dispatch even if cancelled — we have the
           // result in hand, dropping it would strand the project. Reducer
           // is a plain merge; unmounted-component dispatches are a no-op
@@ -1060,14 +1042,7 @@ function LiveOrgOverviewInner({
         rawSchemasCache={state.rawSchemas}
         deployedSchemasCache={state.deployedSchemas}
         datasetCounts={state.datasetCounts}
-        datasetCountsLoading={(() => {
-          const missing = accessibleProjects.filter((p) => !state.datasetCounts.has(p.id))
-          if (missing.length > 0) {
-            // Diagnostic — will strip once confirmed working
-            console.log(`[datasetCounts] still awaiting ${missing.length} of ${accessibleProjects.length}:`, missing.slice(0, 10).map((p) => p.id))
-          }
-          return missing.length > 0
-        })()}
+        datasetCountsLoading={accessibleProjects.some((p) => !state.datasetCounts.has(p.id))}
       />
     </>
   )

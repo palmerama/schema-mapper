@@ -1090,9 +1090,6 @@ function OrgOverview({
                     // pinned at the top by visit count, so they don't shuffle.
                     // Everyone else gates on the eager-fetch reorder settling.
                     const isLoading = _icaLoading || _dclLoading || _plLoading || _dsLoading
-                    if (isLoading) {
-                      console.log(`[loading] ${project.id}: ica=${_icaLoading} dcl=${_dclLoading} pl=${_plLoading} ds=${_dsLoading}`)
-                    }
                     // Separator between the pinned frequent block and the rest.
                     const prev = idx > 0 ? orderedProjects[idx - 1] : null
                     const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq

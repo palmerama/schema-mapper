@@ -659,6 +659,21 @@ function LiveOrgOverviewInner({
         rawResolvedTypes,
         {hiddenTypes: hiddenDocumentTypes, hiddenFields},
       )
+      // TEMP DIAGNOSTIC — remove once verified
+      console.log('[schema-mapper hide-config]', {
+        hiddenDocumentTypes,
+        hiddenFields,
+        rawTypeCount: rawResolvedTypes.length,
+        filteredTypeCount: resolvedTypes.length,
+        droppedTypes: rawResolvedTypes
+          .filter(rt => !resolvedTypes.some(ft => ft.name === rt.name))
+          .map(t => t.name),
+        allTypeNames: rawResolvedTypes.map(t => t.name),
+        sampleFieldNames: rawResolvedTypes.slice(0, 5).map(t => ({
+          type: t.name,
+          fields: t.fields.slice(0, 8).map(f => ({name: f.name, parentPath: f.parentPath})),
+        })),
+      })
       // Same split for every deployed schema entry (workspace switch source).
       const rawResolvedDeployedSchemas = deployedSchemas.map(entry => ({
         ...entry,

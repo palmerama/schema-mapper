@@ -51,6 +51,14 @@ const pageBuilderFieldNames: string[] = ['pageBuilder']
 // (Internal SA app enables this by default when hidden types exist.)
 const allowShowHidden = false
 
+// TEMP DIAGNOSTIC — remove once verified
+console.log('[schema-mapper config @ module load]', {
+  hiddenDocumentTypes,
+  hiddenFields,
+  pageBuilderFieldNames,
+  allowShowHidden,
+})
+
 // SDK bootstrap config — only projectId is needed for auth context.
 // We intentionally DO NOT specify a dataset here: the SDK would open a
 // real-time `listen` stream against it on mount, which 404s if the project

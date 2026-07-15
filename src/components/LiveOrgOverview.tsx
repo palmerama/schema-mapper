@@ -772,6 +772,21 @@ function LiveOrgOverviewInner({
     return {accessibleProjects: accessible, lockedProjects: locked}
   }, [projects, state.accessResults, state.datasets, state.schemas, state.schemaSource, state.datasetsLoading])
 
+  // Diagnostic: which of accessibleProjects's deps changes on every render?
+  const _apDbg = useRef({p: projects, ar: state.accessResults, d: state.datasets, s: state.schemas, ss: state.schemaSource, dl: state.datasetsLoading})
+  const _apPrev = _apDbg.current
+  const _apChanges: string[] = []
+  if (_apPrev.p !== projects) _apChanges.push('projects')
+  if (_apPrev.ar !== state.accessResults) _apChanges.push('accessResults')
+  if (_apPrev.d !== state.datasets) _apChanges.push('datasets')
+  if (_apPrev.s !== state.schemas) _apChanges.push('schemas')
+  if (_apPrev.ss !== state.schemaSource) _apChanges.push('schemaSource')
+  if (_apPrev.dl !== state.datasetsLoading) _apChanges.push('datasetsLoading')
+  if (_apChanges.length > 0) {
+    console.log('[LOO.apChanged]', _apChanges)
+    _apDbg.current = {p: projects, ar: state.accessResults, d: state.datasets, s: state.schemas, ss: state.schemaSource, dl: state.datasetsLoading}
+  }
+
   // ---- Eager dataset-count fetch (for sidebar ordering) ----
   // Runs a lightweight /projects/{id}/datasets fetch per accessible project
   // so the sidebar can sort by dataset count. This is decoupled from the

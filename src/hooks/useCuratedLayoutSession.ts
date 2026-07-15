@@ -176,13 +176,14 @@ export function useCuratedLayoutSession({
   // --- Create-from-current-positions ---
 
   const create = useCallback(async (
-    seed: {positions: Record<string, {x: number; y: number}>; edgeStyle: 'bezier' | 'step' | 'straight'; spacing: number},
+    seed: {positions: Record<string, {x: number; y: number}>; edgeStyle: 'bezier' | 'step' | 'straight'; spacing: number; showHidden?: boolean},
     name = 'Untitled layout',
   ) => {
     const view: CuratedView = {
       nodePositions: seed.positions,
       edgeStyle: seed.edgeStyle,
       spacing: seed.spacing,
+      ...(seed.showHidden ? {showHidden: true} : {}),
     }
     const created = await list.create(
       name,
@@ -241,6 +242,7 @@ export function useCuratedLayoutSession({
     positions: Record<string, {x: number; y: number}>,
     edgeStyle: 'bezier' | 'step' | 'straight',
     spacing: number,
+    showHidden?: boolean,
   ) => {
     if (!activeLayout || !isUnlocked) return
     // Update local view immediately so UI doesn't blip
@@ -250,14 +252,24 @@ export function useCuratedLayoutSession({
         ...cur,
         views: {
           ...cur.views,
-          [viewKey]: {nodePositions: positions, edgeStyle, spacing},
+          [viewKey]: {
+            nodePositions: positions,
+            edgeStyle,
+            spacing,
+            ...(showHidden ? {showHidden: true} : {}),
+          },
         },
       }
     })
     pendingRef.current = {
       layoutId: activeLayout._id,
       viewKey,
-      view: {nodePositions: positions, edgeStyle, spacing},
+      view: {
+        nodePositions: positions,
+        edgeStyle,
+        spacing,
+        ...(showHidden ? {showHidden: true} : {}),
+      },
     }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => void flushSave(), AUTOSAVE_DEBOUNCE_MS)

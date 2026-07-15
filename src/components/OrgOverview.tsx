@@ -348,28 +348,48 @@ function OrgOverview({
     focusState: focusStateForCurated,
   })
 
-  // Persist edge-style / spacing changes to the current curated view.
-  // We re-fire the same handleDrag path with the CURRENT positions extracted
-  // from the DOM — piggybacks on the existing debounced save.
+  // Restore showHidden from the active curated view. When a layout is
+  // selected (or a different sub-view under the same layout activates),
+  // adopt its stored showHidden — SA-shared layouts carrying showHidden:true
+  // thereby override the customer's allowShowHidden gate.
+  // When a curated layout is DE-activated (algo tab click), reset to false
+  // unless the customer's config gate is on (in which case leave user's
+  // current toggle intact — mode change shouldn't undo user's ephemeral pick).
+  useEffect(() => {
+    const stored = curatedSession.activeView
+    if (stored) {
+      setShowHidden(!!stored.showHidden)
+    } else if (!allowShowHidden) {
+      // Config gate is off; curated just cleared — force back to default.
+      // Prevents a shared-layout-forced showHidden bleeding into algo view.
+      setShowHidden(false)
+    }
+  }, [curatedSession.activeView, allowShowHidden])
+
+  // Persist edge-style / spacing / showHidden changes to the current curated
+  // view. We re-fire the same handleDrag path with the CURRENT positions
+  // extracted from the DOM — piggybacks on the existing debounced save.
   useEffect(() => {
     if (!curatedSession.activeLayout || !curatedSession.isUnlocked) return
     if (!graphState.edgeStyle && graphState.spacing === undefined) return
-    // Only re-save if the style/spacing differ from what's stored — else the
-    // effect would refire on every mount.
+    // Only re-save if the style/spacing/showHidden differ from what's stored
+    // — else the effect would refire on every mount.
     const stored = curatedSession.activeView
     const currentStyle = graphState.edgeStyle
     const currentSpacing = graphState.spacing
     const changed =
       (currentStyle && stored && currentStyle !== stored.edgeStyle) ||
-      (currentSpacing !== undefined && stored && currentSpacing !== stored.spacing)
+      (currentSpacing !== undefined && stored && currentSpacing !== stored.spacing) ||
+      (!!showHidden !== !!stored?.showHidden)
     if (!changed) return
     const positions = readNodePositions(graphRef.current)
     curatedSession.handleDrag(
       positions,
       currentStyle || (stored?.edgeStyle ?? 'bezier'),
       currentSpacing ?? (stored?.spacing ?? 1),
+      showHidden,
     )
-  }, [graphState.edgeStyle, graphState.spacing, curatedSession.activeLayout, curatedSession.isUnlocked, curatedSession.activeView, curatedSession])
+  }, [graphState.edgeStyle, graphState.spacing, showHidden, curatedSession.activeLayout, curatedSession.isUnlocked, curatedSession.activeView, curatedSession])
   const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
   const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
     viewportRef.current = v
@@ -1435,7 +1455,7 @@ function OrgOverview({
                 onCuratedDrag={(positions) => {
                   const edgeStyle = graphState.edgeStyle || curatedSession.activeView?.edgeStyle || 'bezier'
                   const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1
-                  curatedSession.handleDrag(positions, edgeStyle, spacing)
+                  curatedSession.handleDrag(positions, edgeStyle, spacing, showHidden)
                 }}
                 onCuratedExitForAlgo={curatedSession.clearSelection}
                 onLockedInteraction={() => setShowUnlockPrompt(true)}
@@ -1653,7 +1673,7 @@ function OrgOverview({
                 const edgeStyle = graphState.edgeStyle || 'bezier'
                 const spacing = graphState.spacing ?? 1
                 void curatedSession.create(
-                  {positions, edgeStyle, spacing},
+                  {positions, edgeStyle, spacing, showHidden},
                   newLayoutName.trim(),
                 )
                 setShowCreateLayoutPrompt(false)
@@ -1677,7 +1697,7 @@ function OrgOverview({
                 const edgeStyle = graphState.edgeStyle || 'bezier'
                 const spacing = graphState.spacing ?? 1
                 void curatedSession.create(
-                  {positions, edgeStyle, spacing},
+                  {positions, edgeStyle, spacing, showHidden},
                   newLayoutName.trim(),
                 )
                 setShowCreateLayoutPrompt(false)

@@ -735,19 +735,39 @@ function OrgOverview({
   // True if config is hiding anything at all — either whole types OR
   // fields within visible types. Gate the "Show hidden" toggle on this so
   // it appears even when only fields (not types) are being stripped.
-  const hasHiddenContent = useMemo(() => {
-    if (!rawTypes) return false
-    if (rawTypes.length !== types.length) return true
-    // Same number of types — check whether any type has fewer fields in
-    // the filtered view than in raw.
+  // Also compute the counts for the label: hidden types + hidden fields
+  // on still-visible types.
+  const {hasHiddenContent, hiddenTypeCount, hiddenFieldCount} = useMemo(() => {
+    if (!rawTypes) return {hasHiddenContent: false, hiddenTypeCount: 0, hiddenFieldCount: 0}
     const filteredByName = new Map(types.map(t => [t.name, t]))
+    let typeCount = 0
+    let fieldCount = 0
     for (const rawT of rawTypes) {
       const filt = filteredByName.get(rawT.name)
-      if (!filt) return true
-      if ((rawT.fields?.length ?? 0) !== (filt.fields?.length ?? 0)) return true
+      if (!filt) {
+        typeCount++
+        continue
+      }
+      const rawFieldCount = rawT.fields?.length ?? 0
+      const filtFieldCount = filt.fields?.length ?? 0
+      if (rawFieldCount > filtFieldCount) {
+        fieldCount += rawFieldCount - filtFieldCount
+      }
     }
-    return false
+    return {
+      hasHiddenContent: typeCount > 0 || fieldCount > 0,
+      hiddenTypeCount: typeCount,
+      hiddenFieldCount: fieldCount,
+    }
   }, [rawTypes, types])
+  // Formatted label suffix for the Show hidden toggle. Distinguishes types
+  // vs fields when both are stripped so the SA sees the whole picture.
+  const hiddenCountLabel = useMemo(() => {
+    const parts: string[] = []
+    if (hiddenTypeCount > 0) parts.push(`${hiddenTypeCount} type${hiddenTypeCount === 1 ? '' : 's'}`)
+    if (hiddenFieldCount > 0) parts.push(`${hiddenFieldCount} field${hiddenFieldCount === 1 ? '' : 's'}`)
+    return parts.length > 0 ? ` (${parts.join(', ')} hidden)` : ''
+  }, [hiddenTypeCount, hiddenFieldCount])
   // Names of types present in rawTypes but not in types — the ones config
   // hides. Only meaningful when showHidden is active.
   const effectiveHiddenTypeNames = useMemo(() => {
@@ -1441,7 +1461,7 @@ function OrgOverview({
                             />
                             <span>
                               Show hidden
-                              {!showHidden ? ` (${rawTypes.length - types.length} hidden)` : ''}
+                              {!showHidden ? hiddenCountLabel : ''}
                             </span>
                           </label>
                         </>

@@ -145,6 +145,25 @@ interface OrgOverviewProps {
   // Field names whose union members are page-builder blocks (hidden by default
   // via the graph toggle). Defaults to ['pageBuilder'] in collectPageBuilderTypeNames.
   readonly pageBuilderFieldNames?: string[]
+  // Raw (pre-hidden-filter) types for the current dataset. When the "Show
+  // hidden" toggle is off, this is unused; when on, replaces `types` in the
+  // graph and any type present in rawTypes but absent from types gets the
+  // "hidden" visual treatment (dashed border, desaturated).
+  readonly rawTypes?: DiscoveredType[]
+  // Names of types that config would normally strip (hiddenDocumentTypes /
+  // hiddenFields effect). Used to distinguish revealed-hidden from regularly
+  // visible nodes when showHidden is on.
+  readonly hiddenTypeNames?: ReadonlySet<string>
+  // When true, users can toggle a "Show hidden" control to reveal
+  // config-hidden types. Off in customer app by default (respecting devs'
+  // intent). An SA-shared curated layout with `showHidden: true` overrides
+  // this gate — the customer sees the shared view as intended.
+  readonly allowShowHidden?: boolean
+  // Raw deployed schemas for workspace switching under Show hidden.
+  readonly rawDeployedSchemas?: DeployedSchemaEntry[]
+  // Cache of raw schemas across all loaded datasets — mirror of schemasCache
+  // used by SendToSanity to carry the pre-filter types into the payload.
+  readonly rawSchemasCache?: Map<string, DiscoveredType[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +251,11 @@ function OrgOverview({
   datasetCounts,
   datasetCountsLoading,
   pageBuilderFieldNames,
+  rawTypes,
+  hiddenTypeNames,
+  allowShowHidden = false,
+  rawDeployedSchemas,
+  rawSchemasCache,
 }: OrgOverviewProps) {
   // ---- Enterprise check ----
   const { isEnterprise } = useEnterpriseCheck(orgId)
@@ -259,6 +283,11 @@ function OrgOverview({
     }
     return false
   })
+  // Show-hidden toggle — reveals types the customer's config would normally
+  // hide (via hiddenDocumentTypes / hiddenFields, and — later — page-builder).
+  // State is per-mount (resetKey remounts SchemaGraph anyway) but restored
+  // from curated view when a saved layout carries it.
+  const [showHidden, setShowHidden] = useState(false)
   const newLayoutInputRef = useRef<HTMLInputElement>(null)
   // Autofocus doesn't stick when the dialog mounts (portal steals focus).
   // Do it imperatively after the dialog is fully open.
@@ -319,28 +348,48 @@ function OrgOverview({
     focusState: focusStateForCurated,
   })
 
-  // Persist edge-style / spacing changes to the current curated view.
-  // We re-fire the same handleDrag path with the CURRENT positions extracted
-  // from the DOM — piggybacks on the existing debounced save.
+  // Restore showHidden from the active curated view. When a layout is
+  // selected (or a different sub-view under the same layout activates),
+  // adopt its stored showHidden — SA-shared layouts carrying showHidden:true
+  // thereby override the customer's allowShowHidden gate.
+  // When a curated layout is DE-activated (algo tab click), reset to false
+  // unless the customer's config gate is on (in which case leave user's
+  // current toggle intact — mode change shouldn't undo user's ephemeral pick).
+  useEffect(() => {
+    const stored = curatedSession.activeView
+    if (stored) {
+      setShowHidden(!!stored.showHidden)
+    } else if (!allowShowHidden) {
+      // Config gate is off; curated just cleared — force back to default.
+      // Prevents a shared-layout-forced showHidden bleeding into algo view.
+      setShowHidden(false)
+    }
+  }, [curatedSession.activeView, allowShowHidden])
+
+  // Persist edge-style / spacing / showHidden changes to the current curated
+  // view. We re-fire the same handleDrag path with the CURRENT positions
+  // extracted from the DOM — piggybacks on the existing debounced save.
   useEffect(() => {
     if (!curatedSession.activeLayout || !curatedSession.isUnlocked) return
     if (!graphState.edgeStyle && graphState.spacing === undefined) return
-    // Only re-save if the style/spacing differ from what's stored — else the
-    // effect would refire on every mount.
+    // Only re-save if the style/spacing/showHidden differ from what's stored
+    // — else the effect would refire on every mount.
     const stored = curatedSession.activeView
     const currentStyle = graphState.edgeStyle
     const currentSpacing = graphState.spacing
     const changed =
       (currentStyle && stored && currentStyle !== stored.edgeStyle) ||
-      (currentSpacing !== undefined && stored && currentSpacing !== stored.spacing)
+      (currentSpacing !== undefined && stored && currentSpacing !== stored.spacing) ||
+      (!!showHidden !== !!stored?.showHidden)
     if (!changed) return
     const positions = readNodePositions(graphRef.current)
     curatedSession.handleDrag(
       positions,
       currentStyle || (stored?.edgeStyle ?? 'bezier'),
       currentSpacing ?? (stored?.spacing ?? 1),
+      showHidden,
     )
-  }, [graphState.edgeStyle, graphState.spacing, curatedSession.activeLayout, curatedSession.isUnlocked, curatedSession.activeView, curatedSession])
+  }, [graphState.edgeStyle, graphState.spacing, showHidden, curatedSession.activeLayout, curatedSession.isUnlocked, curatedSession.activeView, curatedSession])
   const viewportRef = useRef<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 })
   const handleViewportChange = useCallback((v: { x: number; y: number; zoom: number }) => {
     viewportRef.current = v
@@ -679,7 +728,58 @@ function OrgOverview({
 
   // Use the schema source from props (parent controls deployed/inferred)
   const effectiveSource = schemaSource
-  const effectiveTypes = types
+  // When Show hidden is active and we have the raw (pre-filter) types,
+  // substitute them so the graph sees the full picture. The graph itself
+  // distinguishes hidden types via hiddenTypeNames (dashed border + wash).
+  const effectiveTypes = showHidden && rawTypes ? rawTypes : types
+  // True if config is hiding anything at all — either whole types OR
+  // fields within visible types. Gate the "Show hidden" toggle on this so
+  // it appears even when only fields (not types) are being stripped.
+  // Also compute the counts for the label: hidden types + hidden fields
+  // on still-visible types.
+  const {hasHiddenContent, hiddenTypeCount, hiddenFieldCount} = useMemo(() => {
+    if (!rawTypes) return {hasHiddenContent: false, hiddenTypeCount: 0, hiddenFieldCount: 0}
+    const filteredByName = new Map(types.map(t => [t.name, t]))
+    let typeCount = 0
+    let fieldCount = 0
+    for (const rawT of rawTypes) {
+      const filt = filteredByName.get(rawT.name)
+      if (!filt) {
+        typeCount++
+        continue
+      }
+      const rawFieldCount = rawT.fields?.length ?? 0
+      const filtFieldCount = filt.fields?.length ?? 0
+      if (rawFieldCount > filtFieldCount) {
+        fieldCount += rawFieldCount - filtFieldCount
+      }
+    }
+    return {
+      hasHiddenContent: typeCount > 0 || fieldCount > 0,
+      hiddenTypeCount: typeCount,
+      hiddenFieldCount: fieldCount,
+    }
+  }, [rawTypes, types])
+  // Formatted label suffix for the Show hidden toggle. Distinguishes types
+  // vs fields when both are stripped so the SA sees the whole picture.
+  const hiddenCountLabel = useMemo(() => {
+    const parts: string[] = []
+    if (hiddenTypeCount > 0) parts.push(`${hiddenTypeCount} type${hiddenTypeCount === 1 ? '' : 's'}`)
+    if (hiddenFieldCount > 0) parts.push(`${hiddenFieldCount} field${hiddenFieldCount === 1 ? '' : 's'}`)
+    return parts.length > 0 ? ` (${parts.join(', ')} hidden)` : ''
+  }, [hiddenTypeCount, hiddenFieldCount])
+  // Names of types present in rawTypes but not in types — the ones config
+  // hides. Only meaningful when showHidden is active.
+  const effectiveHiddenTypeNames = useMemo(() => {
+    if (!showHidden || !rawTypes) return undefined
+    const visible = new Set(types.map(t => t.name))
+    const hidden = new Set<string>()
+    for (const t of rawTypes) if (!visible.has(t.name)) hidden.add(t.name)
+    // Merge with any hiddenTypeNames passed from parent (kept for future
+    // extensibility — parent may pre-compute a broader hidden set).
+    if (hiddenTypeNames) for (const n of hiddenTypeNames) hidden.add(n)
+    return hidden.size > 0 ? hidden : undefined
+  }, [showHidden, rawTypes, types, hiddenTypeNames])
 
   // Page-builder / hero block types referenced from top-level fields. When the
   // toggle is off we hide these nodes from the graph but keep the pageBuilder/
@@ -838,7 +938,23 @@ function OrgOverview({
         },
         workspace: selectedWorkspaceName && selectedWorkspaceName !== 'default' ? selectedWorkspaceName : undefined,
         types: (effectiveTypes || []).map(serializeType),
-        displaySettings: Object.keys(displaySettings).length > 0 ? displaySettings : undefined,
+        // Raw (pre-hidden-filter) types only when they differ from `types`.
+        // Old submissions and configs without hidden filters won't have this
+        // field; internal falls back to `types` for backward compatibility.
+        rawTypes:
+          rawTypes && rawTypes.length !== (effectiveTypes || []).length
+            ? rawTypes.map(serializeType)
+            : undefined,
+        // Names of types config would strip — internal's Show hidden toggle
+        // uses this to mark revealed nodes with the dashed/desaturated
+        // treatment. Empty set → omit.
+        hiddenTypeNames:
+          effectiveHiddenTypeNames && effectiveHiddenTypeNames.size > 0
+            ? Array.from(effectiveHiddenTypeNames)
+            : undefined,
+        displaySettings: Object.keys(displaySettings).length > 0
+          ? { ...displaySettings, showHidden: showHidden || undefined }
+          : (showHidden ? { showHidden: true } : undefined),
         nodePositions: Object.keys(nodePositions).length > 0 ? nodePositions : undefined,
         focusState: graphState.focusedType ? { typeName: graphState.focusedType, depth: graphState.focusDepth ?? 0 } : undefined,
         linkedSchemas: linkedSchemas.length > 0 ? linkedSchemas : undefined,
@@ -974,9 +1090,6 @@ function OrgOverview({
                     // pinned at the top by visit count, so they don't shuffle.
                     // Everyone else gates on the eager-fetch reorder settling.
                     const isLoading = _icaLoading || _dclLoading || _plLoading || _dsLoading
-                    if (isLoading) {
-                      console.log(`[loading] ${project.id}: ica=${_icaLoading} dcl=${_dclLoading} pl=${_plLoading} ds=${_dsLoading}`)
-                    }
                     // Separator between the pinned frequent block and the rest.
                     const prev = idx > 0 ? orderedProjects[idx - 1] : null
                     const showSeparator = prev !== null && isFrequent(prev.id) && !isFreq
@@ -1295,6 +1408,7 @@ function OrgOverview({
               <SchemaGraph
                 types={effectiveTypes}
                 excludeTypeNames={excludeTypeNames}
+                hiddenTypeNames={effectiveHiddenTypeNames}
                 onStateChange={setGraphState}
                 onViewportChange={handleViewportChange}
                 fitViewTrigger={fitViewTrigger}
@@ -1307,24 +1421,48 @@ function OrgOverview({
                 restoreViewport={pendingRestoreViewport}
                 viewportNudge={viewportNudge}
                 extraControls={
-                  pageBuilderTypeNames.length > 0 ? (
+                  (pageBuilderTypeNames.length > 0 || (allowShowHidden && hasHiddenContent)) ? (
                     <>
-                      <span aria-hidden="true" />
-                      <label
-                        className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
-                        title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showPageBuilderBlocks}
-                          onChange={e => handleShowPageBuilderChange(e.target.checked)}
-                          className="w-3 h-3 accent-gray-700 cursor-pointer"
-                        />
-                        <span>
-                          Page builder
-                          {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
-                        </span>
-                      </label>
+                      {pageBuilderTypeNames.length > 0 && (
+                        <>
+                          <span aria-hidden="true" />
+                          <label
+                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={showPageBuilderBlocks}
+                              onChange={e => handleShowPageBuilderChange(e.target.checked)}
+                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                            />
+                            <span>
+                              Page builder
+                              {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
+                            </span>
+                          </label>
+                        </>
+                      )}
+                      {allowShowHidden && hasHiddenContent && (
+                        <>
+                          <span aria-hidden="true" />
+                          <label
+                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            title="Show types this app is configured to hide. Revealed types are dashed and desaturated."
+                          >
+                            <input
+                              type="checkbox"
+                              checked={showHidden}
+                              onChange={e => setShowHidden(e.target.checked)}
+                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                            />
+                            <span>
+                              Show hidden
+                              {!showHidden ? hiddenCountLabel : ''}
+                            </span>
+                          </label>
+                        </>
+                      )}
                     </>
                   ) : undefined
                 }
@@ -1350,7 +1488,7 @@ function OrgOverview({
                 onCuratedDrag={(positions) => {
                   const edgeStyle = graphState.edgeStyle || curatedSession.activeView?.edgeStyle || 'bezier'
                   const spacing = graphState.spacing ?? curatedSession.activeView?.spacing ?? 1
-                  curatedSession.handleDrag(positions, edgeStyle, spacing)
+                  curatedSession.handleDrag(positions, edgeStyle, spacing, showHidden)
                 }}
                 onCuratedExitForAlgo={curatedSession.clearSelection}
                 onLockedInteraction={() => setShowUnlockPrompt(true)}
@@ -1568,7 +1706,7 @@ function OrgOverview({
                 const edgeStyle = graphState.edgeStyle || 'bezier'
                 const spacing = graphState.spacing ?? 1
                 void curatedSession.create(
-                  {positions, edgeStyle, spacing},
+                  {positions, edgeStyle, spacing, showHidden},
                   newLayoutName.trim(),
                 )
                 setShowCreateLayoutPrompt(false)
@@ -1592,7 +1730,7 @@ function OrgOverview({
                 const edgeStyle = graphState.edgeStyle || 'bezier'
                 const spacing = graphState.spacing ?? 1
                 void curatedSession.create(
-                  {positions, edgeStyle, spacing},
+                  {positions, edgeStyle, spacing, showHidden},
                   newLayoutName.trim(),
                 )
                 setShowCreateLayoutPrompt(false)

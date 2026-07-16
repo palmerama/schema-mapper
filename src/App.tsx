@@ -44,6 +44,15 @@ const hiddenFields: string[] = []
 // opt in when your block-union fields use different names.
 const pageBuilderFieldNames: string[] = ['pageBuilder']
 
+// Show-hidden toggle gate — customer app default is OFF, respecting devs'
+// intent to keep certain types out of the graph. Flip to `true` if you want
+// to expose a "Show hidden" checkbox to end users that reveals types your
+// hiddenDocumentTypes / hiddenFields / pageBuilder config strips.
+// (Internal SA app enables this by default when hidden types exist.)
+const allowShowHidden = false
+
+// TEMP DIAGNOSTIC — remove once verified
+
 // SDK bootstrap config — only projectId is needed for auth context.
 // We intentionally DO NOT specify a dataset here: the SDK would open a
 // real-time `listen` stream against it on mount, which 404s if the project
@@ -132,6 +141,7 @@ export default function App() {
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
                       pageBuilderFieldNames={pageBuilderFieldNames}
+                      allowShowHidden={allowShowHidden}
                     />
                   }
                 />
@@ -143,6 +153,7 @@ export default function App() {
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
                       pageBuilderFieldNames={pageBuilderFieldNames}
+                      allowShowHidden={allowShowHidden}
                     />
                   }
                 />
@@ -154,6 +165,7 @@ export default function App() {
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
                       pageBuilderFieldNames={pageBuilderFieldNames}
+                      allowShowHidden={allowShowHidden}
                     />
                   }
                 />
@@ -165,6 +177,7 @@ export default function App() {
                       hiddenDocumentTypes={hiddenDocumentTypes}
                       hiddenFields={hiddenFields}
                       pageBuilderFieldNames={pageBuilderFieldNames}
+                      allowShowHidden={allowShowHidden}
                     />
                   }
                 />

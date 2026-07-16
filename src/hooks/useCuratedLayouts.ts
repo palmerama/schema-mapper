@@ -8,6 +8,14 @@ export type CuratedView = {
   nodePositions: Record<string, {x: number; y: number}>
   edgeStyle: 'bezier' | 'step' | 'straight'
   spacing: number
+  /**
+   * Whether the "Show hidden" toggle was active when this view was saved.
+   * Absent = false (backward compatible with pre-show-hidden layouts).
+   * When the layout is re-opened, we seed showHidden from this field so
+   * SA-shared layouts with showHidden:true override the customer's
+   * allowShowHidden gate.
+   */
+  showHidden?: boolean
 }
 
 export type CuratedLayoutSummary = {

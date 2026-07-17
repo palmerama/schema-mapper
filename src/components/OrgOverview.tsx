@@ -4,7 +4,7 @@ import { GoDatabase, GoLock, GoUnlock, GoChevronRight, GoArrowLeft, GoStarFill, 
 import { PiTreeStructure } from 'react-icons/pi'
 import { RiAlertFill, RiCheckFill } from 'react-icons/ri'
 import { version } from '../../package.json'
-import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex, TextInput } from '@sanity/ui'
+import { Tab, TabList, Box, Text, Stack, Spinner, Tooltip, Button, Flex, TextInput, Switch } from '@sanity/ui'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge, SchemaGraph, ExportDropdown, InfoDialog, SanityLogoIcon } from '@sanity-labs/schema-mapper-core'
 import type { ExportMenuItem, SchemaGraphState } from '@sanity-labs/schema-mapper-core'
@@ -1427,14 +1427,13 @@ function OrgOverview({
                         <>
                           <span aria-hidden="true" />
                           <label
-                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            className="col-span-2 flex items-center gap-2 cursor-pointer select-none"
                             title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
                           >
-                            <input
-                              type="checkbox"
+                            <Switch
                               checked={showPageBuilderBlocks}
-                              onChange={e => handleShowPageBuilderChange(e.target.checked)}
-                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                              onChange={e => handleShowPageBuilderChange(e.currentTarget.checked)}
+                              style={{ transform: 'scale(0.7)', transformOrigin: 'left center', marginRight: -6 }}
                             />
                             <span>
                               Page builder
@@ -1447,14 +1446,13 @@ function OrgOverview({
                         <>
                           <span aria-hidden="true" />
                           <label
-                            className="col-span-2 flex items-center gap-1 cursor-pointer select-none"
+                            className="col-span-2 flex items-center gap-2 cursor-pointer select-none"
                             title="Show types this app is configured to hide. Revealed types are dashed and desaturated."
                           >
-                            <input
-                              type="checkbox"
+                            <Switch
                               checked={showHidden}
-                              onChange={e => setShowHidden(e.target.checked)}
-                              className="w-3 h-3 accent-gray-700 cursor-pointer"
+                              onChange={e => setShowHidden(e.currentTarget.checked)}
+                              style={{ transform: 'scale(0.7)', transformOrigin: 'left center', marginRight: -6 }}
                             />
                             <span>
                               Show hidden

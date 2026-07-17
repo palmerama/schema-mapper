@@ -1424,42 +1424,40 @@ function OrgOverview({
                   (pageBuilderTypeNames.length > 0 || (allowShowHidden && hasHiddenContent)) ? (
                     <>
                       {pageBuilderTypeNames.length > 0 && (
-                        <>
-                          <span aria-hidden="true" />
-                          <label
-                            className="col-span-2 flex items-center gap-2 cursor-pointer select-none"
-                            title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
-                          >
-                            <Switch
-                              checked={showPageBuilderBlocks}
-                              onChange={e => handleShowPageBuilderChange(e.currentTarget.checked)}
-                              style={{ transform: 'scale(0.85)', transformOrigin: 'left center', marginRight: -4, cursor: 'pointer' }}
-                            />
-                            <span>
-                              Page builder
-                              {!showPageBuilderBlocks ? ` (${pageBuilderTypeNames.length} hidden)` : ''}
-                            </span>
-                          </label>
-                        </>
+                        <label
+                          className="col-span-3 flex justify-between items-center gap-2 cursor-pointer select-none"
+                          title="When off, pageBuilder/hero fields stay on documents but their block types are hidden until you click a lozenge"
+                        >
+                          <span className="flex flex-col leading-tight">
+                            <span>Page builder</span>
+                            {!showPageBuilderBlocks && (
+                              <span className="text-[10px] opacity-70">({pageBuilderTypeNames.length} hidden)</span>
+                            )}
+                          </span>
+                          <Switch
+                            checked={showPageBuilderBlocks}
+                            onChange={e => handleShowPageBuilderChange(e.currentTarget.checked)}
+                            style={{ transform: 'scale(0.85)', transformOrigin: 'right center', cursor: 'pointer' }}
+                          />
+                        </label>
                       )}
                       {allowShowHidden && hasHiddenContent && (
-                        <>
-                          <span aria-hidden="true" />
-                          <label
-                            className="col-span-2 flex items-center gap-2 cursor-pointer select-none"
-                            title="Show types this app is configured to hide. Revealed types are dashed and desaturated."
-                          >
-                            <Switch
-                              checked={showHidden}
-                              onChange={e => setShowHidden(e.currentTarget.checked)}
-                              style={{ transform: 'scale(0.85)', transformOrigin: 'left center', marginRight: -4, cursor: 'pointer' }}
-                            />
-                            <span>
-                              Show hidden
-                              {!showHidden ? hiddenCountLabel : ''}
-                            </span>
-                          </label>
-                        </>
+                        <label
+                          className="col-span-3 flex justify-between items-center gap-2 cursor-pointer select-none"
+                          title="Show types this app is configured to hide. Revealed types are dashed and desaturated."
+                        >
+                          <span className="flex flex-col leading-tight">
+                            <span>Show hidden</span>
+                            {!showHidden && hiddenCountLabel && (
+                              <span className="text-[10px] opacity-70">{hiddenCountLabel.trim().replace(/^\s+/, '')}</span>
+                            )}
+                          </span>
+                          <Switch
+                            checked={showHidden}
+                            onChange={e => setShowHidden(e.currentTarget.checked)}
+                            style={{ transform: 'scale(0.85)', transformOrigin: 'right center', cursor: 'pointer' }}
+                          />
+                        </label>
                       )}
                     </>
                   ) : undefined

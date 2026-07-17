@@ -12,8 +12,10 @@ export default defineCliConfig({
     entry: './src/App.tsx',
     icon: './static/icon.svg',
   },
+  // Uncomment and paste your appId here after your first `npx sanity deploy`.
+  // Keeping deployment inside this marker block preserves it across updates.
   // deployment: {
-  //   appId: 'YOUR_APP_ID', // Uncomment after first deploy
+  //   appId: 'YOUR_APP_ID',
   // },
   // ▲▲▲ END CUSTOMER APP CONFIG ▲▲▲
   vite: async (viteConfig) => {

@@ -1430,9 +1430,7 @@ function OrgOverview({
                         >
                           <span className="flex flex-col leading-tight">
                             <span>Page builder</span>
-                            {!showPageBuilderBlocks && (
-                              <span className="text-[10px] opacity-70">({pageBuilderTypeNames.length} hidden)</span>
-                            )}
+                            <span className="text-[10px] opacity-70">({pageBuilderTypeNames.length} hidden)</span>
                           </span>
                           <Switch
                             checked={showPageBuilderBlocks}
@@ -1448,7 +1446,7 @@ function OrgOverview({
                         >
                           <span className="flex flex-col leading-tight">
                             <span>Show hidden</span>
-                            {!showHidden && hiddenCountLabel && (
+                            {hiddenCountLabel && (
                               <span className="text-[10px] opacity-70">{hiddenCountLabel.trim().replace(/^\s+/, '')}</span>
                             )}
                           </span>
